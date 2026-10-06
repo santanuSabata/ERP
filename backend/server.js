@@ -36,6 +36,9 @@ import vendorRoutes from "./routes/purchase/vendorRoutes.js";
 import purchaseOrdersRoutes from "./routes/purchase/purchaseOrdersRoutes.js"; // 👈 1. Import Purchase Orders routes
 import purchasesRoutes from "./routes/purchase/purchasesRoutes.js";
 
+//CRM
+import crmSettingsRoutes from './routes/crm/crmSettingsRoutes.js';
+
 
 //HR
 import departmentRoutes from './routes/hr/departmentRoutes.js';
@@ -47,7 +50,7 @@ import attendanceSheetRoutes from './routes/hr/attendanceSheetRoutes.js';
 
 //Agents
 import agentRoutes from './routes/agent/agentRoutes.js';
-import leadsRoutes from './routes/leads/leadsRoutes.js';
+import leadsRoutes from './routes/crm/leadsRoutes.js';
 
 dotenv.config();
 
@@ -96,8 +99,9 @@ app.use('/api/stocks', stocksRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoriesRoutes);
 
-//Leads
+//crm
 app.use('/api/leads', leadsRoutes);
+app.use('/api/crm-settings', crmSettingsRoutes);
 
 //HR
 app.use('/api/departments', departmentRoutes);

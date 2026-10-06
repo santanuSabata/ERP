@@ -76,7 +76,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 
 const mainItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/ERP-ai', label: 'CRM', icon: Sparkles },
+    { to: '/ERP-ai', label: 'ERP', icon: Sparkles },
 ];
 
 const menuGroups = [
@@ -130,26 +130,13 @@ const menuGroups = [
 ];
 
 const leadsMasterGroup = {
-    label: 'Leads',
+    label: 'CRM',
     icon: Target,
     children: [
         { to: '/leads/dashboard', label: 'Lead Dashboard', icon: BarChart3 },
         { to: '/leads', label: 'All Leads', icon: ClipboardList },
-        { to: '/leads/new', label: 'New Leads', icon: UserPlus },
-        { to: '/leads/my', label: 'My Leads', icon: User },
-        { to: '/leads/unassigned', label: 'Unassigned Leads', icon: UserX },
-        { to: '/leads/hot', label: 'Hot Leads', icon: Flame },
-        { to: '/leads/follow-up', label: 'Follow-up Leads', icon: Clock },
-        { to: '/leads/converted', label: 'Converted Leads', icon: CheckCircle2 },
-        { to: '/leads/lost', label: 'Lost Leads', icon: AlertCircle },
-        { to: '/calling/center', label: 'Call Center', icon: PhoneCall },
-        { to: '/calling/history', label: 'Call History', icon: History },
-        { to: '/calling/recording', label: 'Call Recording', icon: Mic },
-        { to: '/calling/disposition', label: 'Call Disposition', icon: FileSignature },
-        { to: '/follow-ups/today', label: "Today's Follow-ups", icon: CalendarDays },
-        { to: '/follow-ups/upcoming', label: 'Upcoming', icon: Calendar },
-        { to: '/follow-ups/overdue', label: 'Overdue', icon: Clock },
-        { to: '/follow-ups/completed', label: 'Completed', icon: CheckCircle2 },
+        { to: '/leads/edit/:id', label: 'Edit Lead', icon: ClipboardList },
+        { to: '/crm-settings', label: 'CRM Settings', icon: Settings },
     ],
 };
 
@@ -172,7 +159,7 @@ const hrMasterGroup = {
 };
 
 const bottomItems = [
-    { to: '/settings', label: 'CRM Settings', icon: Settings },
+    { to: '/settings', label: 'ERP Settings', icon: Settings },
 ];
 
 const settingsSections = [

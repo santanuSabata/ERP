@@ -14,8 +14,7 @@ import Banks from './components/settings/Banks.jsx';
 import DocumentNotesAndTerms from './components/settings/DocumentNotesAndTerms.jsx';
 import BarcodeSettings from './components/settings/BarcodeSettings.jsx';
 import DocumentPrefix from './components/settings/Prefix.jsx';
-import UsersManagement from './components/settings/UsersManagement.jsx';
-
+ 
 import Customers from './pages/sales/Customers.jsx';
 import AddCustomer from './components/sales/AddCustomer.jsx';
 
@@ -51,7 +50,14 @@ import AddEmployee from './components/hr/AddEmployee.jsx';
 import EmployeeDashboard from './pages/hr/EmployeeDashboard.jsx';
 import EmployeeAttendance from './pages/hr/EmployeeAttendance.jsx';
 import AttendanceSheet from './pages/hr/AttendanceSheet.jsx';
-import Leads from './pages/leads/Leads.jsx';
+
+//CRM
+import Leads from './pages/crm/Leads.jsx';
+import AddLead from './components/crm/AddLead.jsx';
+import LeadView from './components/crm/LeadView.jsx';
+import CrmSettings from './pages/crm/CrmSettings.jsx';
+
+
 
 //Agents (Standalone - No Sidebar)
 import AgentLogin from './pages/agent/AgentLogin.jsx';
@@ -85,6 +91,12 @@ const App = () => {
                 
                 {/* Leads Routes */}
                 <Route path="/leads" element={<Leads />} />
+
+                // CRM Routes:
+                <Route path="/leads/add" element={<AddLead />} />
+                <Route path="/leads/edit/:id" element={<AddLead />} />
+                <Route path="/crm-settings" element={<CrmSettings />} />
+                <Route path="/leads/view/:id" element={<LeadView />} />
 
                 {/* Vendors Routes */}
                 <Route path="/vendors" element={<Vendors />} />

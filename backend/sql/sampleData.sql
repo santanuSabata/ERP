@@ -209,3 +209,13 @@ INSERT INTO stocks (stock_date, company_id, product_id, transaction_id, transact
 ('2026-09-12', 1, NULL, 'TXN-9018', '2026-09-12', 'Stock Out', 0.00, 19.00, '2026-09-12', 'Active', 'Insurance analytics guides for Divya (AGT-118)', 'USR-03'),
 ('2026-09-15', 1, NULL, 'TXN-9019', '2026-09-15', 'Stock Out', 0.00, 21.00, '2026-09-15', 'Active', 'Catastrophe modeling guides for Rahul (AGT-119)', 'USR-02'),
 ('2026-09-18', 1, NULL, 'TXN-9020', '2026-09-18', 'Stock Out', 0.00, 28.00, '2026-09-18', 'Active', 'Marine & cargo insurance primers for Puja (AGT-120)', 'USR-01');
+
+
+-- Sample Seed Data for Initial Testing
+INSERT INTO crm_pipelines (company_id, name, is_default, display_order) VALUES (1, 'Sales', TRUE, 1);
+INSERT INTO crm_lead_stages (company_id, pipeline_id, name, display_order) VALUES (1, 1, 'New Lead', 1), (1, 1, 'Contacted', 2);
+INSERT INTO crm_deal_stages (company_id, pipeline_id, name, display_order, probability_percentage) VALUES (1, 1, 'Qualified', 1, 20.00), (1, 1, 'Proposal Sent', 2, 50.00);
+INSERT INTO crm_sources (company_id, name, display_order) VALUES (1, 'Website Form', 1), (1, 'Direct Call', 2), (1, 'Referral', 3);
+INSERT INTO crm_labels (company_id, name, color_code, display_order) VALUES (1, 'High Priority', '#E53935', 1), (1, 'Enterprise', '#2563EB', 2);
+INSERT INTO crm_contract_types (company_id, name, display_order) VALUES (1, 'Service Level Agreement (SLA)', 1), (1, 'Annual Maintenance Contract (AMC)', 2);
+INSERT INTO crm_products (company_id, name, price, display_order) VALUES (1, 'Enterprise Cloud ERP License', 150000.00, 1), (1, 'Manufacturing Module Add-on', 45000.00, 2);

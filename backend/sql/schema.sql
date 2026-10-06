@@ -467,19 +467,26 @@ CREATE TABLE IF NOT EXISTS employee_attendance (
 
 CREATE TABLE IF NOT EXISTS leads (
     id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
     transaction_id VARCHAR(50) UNIQUE NOT NULL,
     transaction_date DATE NOT NULL,
     company_name VARCHAR(150) NOT NULL,
     contact_person VARCHAR(100) NOT NULL,
     email VARCHAR(100),
     phone VARCHAR(20) NOT NULL,
-    insurance_type VARCHAR(100) NOT NULL, -- e.g., Group Health, Commercial Liability, Cyber Security
+    insurance_type VARCHAR(100) NOT NULL, -- Product / Insurance Type
     policy_value NUMERIC(12, 2) DEFAULT 0.00,
-    transaction_type VARCHAR(50) DEFAULT 'New Policy', -- New Policy, Renewal, Endorsement
+    transaction_type VARCHAR(50) DEFAULT 'Fresh', -- Fresh, Rollover, Renewal
+    deal_stage_id INTEGER REFERENCES crm_deal_stages(id) ON DELETE SET NULL, -- References Deal Stages ID
+    lead_stage_id INTEGER REFERENCES crm_lead_stages(id) ON DELETE SET NULL, -- References Lead Stages ID
     status VARCHAR(50) DEFAULT 'New', -- New, Contacted, Interested, Converted, Closed
     agent_id INT REFERENCES employees(id) ON DELETE SET NULL,
     remarks TEXT,
     expiry_date DATE,
+    existing_insurer VARCHAR(150),
+    state VARCHAR(100),
+    city VARCHAR(100),
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_by VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -499,6 +506,8 @@ CREATE TABLE IF NOT EXISTS stocks (
     issue_date DATE NOT NULL,
     status VARCHAR(30) CHECK (status IN ('Active', 'Returned', 'Overdue', 'Lost', 'Completed')) DEFAULT 'Active',
     remarks TEXT,
+    state VARCHAR(100),
+    city VARCHAR(100),
     user_id VARCHAR(20),
     is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -570,4 +579,123 @@ CREATE TABLE IF NOT EXISTS purchase_details (
     quantity NUMERIC(10, 2) NOT NULL DEFAULT 1,
     unit_price NUMERIC(12, 2) NOT NULL DEFAULT 0,
     line_total NUMERIC(12, 2) NOT NULL DEFAULT 0
+);
+
+-- 1. Pipelines Table
+CREATE TABLE IF NOT EXISTS crm_pipelines (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    name VARCHAR(150) NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE,
+    display_order INTEGER DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Lead Stages Table
+CREATE TABLE IF NOT EXISTS crm_lead_stages (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    pipeline_id INTEGER REFERENCES crm_pipelines(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    display_order INTEGER DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Deal Stages Table
+CREATE TABLE IF NOT EXISTS crm_deal_stages (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    pipeline_id INTEGER REFERENCES crm_pipelines(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    display_order INTEGER DEFAULT 0,
+    probability_percentage NUMERIC(5, 2) DEFAULT 0.00,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Sources Table
+CREATE TABLE IF NOT EXISTS crm_sources (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    name VARCHAR(150) NOT NULL,
+    display_order INTEGER DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Labels Table
+CREATE TABLE IF NOT EXISTS crm_labels (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    name VARCHAR(100) NOT NULL,
+    color_code VARCHAR(20) DEFAULT '#2563EB',
+    display_order INTEGER DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Contract Types Table
+CREATE TABLE IF NOT EXISTS crm_contract_types (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    name VARCHAR(150) NOT NULL,
+    description TEXT,
+    display_order INTEGER DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Products Table
+CREATE TABLE IF NOT EXISTS crm_products (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    name VARCHAR(150) NOT NULL,
+    description TEXT,
+    price NUMERIC(12, 2) DEFAULT 0.00,
+    display_order INTEGER DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lead_assignment_history (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    previous_agent_id INT REFERENCES employees(id) ON DELETE SET NULL,
+    new_agent_id INT REFERENCES employees(id) ON DELETE SET NULL,
+    changed_by VARCHAR(150) DEFAULT 'Admin',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lead_phones (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    phone_label VARCHAR(50) DEFAULT 'Work',
+    phone_number VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lead_emails (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    email_label VARCHAR(50) DEFAULT 'Work',
+    email_address VARCHAR(150) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lead_discussions (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    subject VARCHAR(250),
+    discussion_text TEXT NOT NULL,
+    created_by VARCHAR(150) DEFAULT 'Admin',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
