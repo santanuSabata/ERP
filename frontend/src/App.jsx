@@ -54,9 +54,9 @@ import AttendanceSheet from './pages/hr/AttendanceSheet.jsx';
 //CRM
 import Leads from './pages/crm/Leads.jsx';
 import AddLead from './components/crm/AddLead.jsx';
-import LeadView from './components/crm/LeadView.jsx';
+import LeadView from './components/crm/ViewLead.jsx';
 import CrmSettings from './pages/crm/CrmSettings.jsx';
-
+import LeadsDashboard from './pages/crm/LeadsDashboard.jsx';
 
 
 //Agents (Standalone - No Sidebar)
@@ -88,15 +88,15 @@ const App = () => {
                 <Route path="/customers" element={<Customers />} />
                 <Route path="/customer/add" element={<AddCustomer />} />
                 <Route path="/customers/edit/:id" element={<AddCustomer />} />
-                
-                {/* Leads Routes */}
-                <Route path="/leads" element={<Leads />} />
+                                
 
                 // CRM Routes:
-                <Route path="/leads/add" element={<AddLead />} />
-                <Route path="/leads/edit/:id" element={<AddLead />} />
+                <Route path="/crm/leads" element={<Leads />} />
+                <Route path="/crm/leads/add" element={<AddLead />} />
+                <Route path="/crm/leads/edit/:id" element={<AddLead />} />
                 <Route path="/crm-settings" element={<CrmSettings />} />
                 <Route path="/leads/view/:id" element={<LeadView />} />
+                <Route path="/crm/leads-dashboard" element={<LeadsDashboard />} />
 
                 {/* Vendors Routes */}
                 <Route path="/vendors" element={<Vendors />} />

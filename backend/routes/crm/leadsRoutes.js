@@ -5,7 +5,8 @@ import {
     createLead, 
     updateLead, 
     deleteLead, 
-    bulkUploadLeads 
+    bulkUploadLeads,
+    getLeadMetricsSummary 
 } from '../../controllers/crm/leadsController.js';
 
 const router = express.Router();
@@ -16,5 +17,6 @@ router.post('/', createLead);
 router.put('/:id', updateLead);
 router.delete('/:id', deleteLead);
 router.post('/bulk-upload', bulkUploadLeads);
+router.get('/metrics/summary', getLeadMetricsSummary);
 
 export default router;

@@ -1,5 +1,6 @@
 import pool from '../../db.js';
 
+
 export const getUsers = async (req, res) => {
     try {
         const { companyId = 2, search = '', page = 1, limit = 10, role = 'All' } = req.query;
@@ -87,12 +88,13 @@ export const getUserById = async (req, res) => {
 
 export const createUser = async (req, res) => {
     try {
-        const { companyId = 2, employeeId, departmentId, designationId, username, fullName, email, mobile, role, status, password, pin, createdBy } = req.body;
+        const { companyId = 2, employeeId, departmentId, designationId, username, fullName, email, mobile, role = 'Staff', status, password, pin, createdBy } = req.body;
 
         if (!employeeId || !username || !email) {
             return res.status(400).json({ error: 'Employee, Username, and Email are required.' });
         }
 
+        // 1. Insert into users table
         const query = `
             INSERT INTO users (company_id, employee_id, department_id, designation_id, username, full_name, email, mobile, role, status, password_hash, secure_pin, created_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -100,11 +102,21 @@ export const createUser = async (req, res) => {
         `;
         const values = [
             companyId, employeeId, departmentId || null, designationId || null, 
-            username, fullName, email, mobile, role || 'Staff', status || 'Active', password || null, pin || null, createdBy || 'System Admin'
+            username, fullName, email, mobile, role, status || 'Active', password || null, pin || null, createdBy || 'System Admin'
         ];
         
         const { rows } = await pool.query(query, values);
-        return res.status(201).json({ success: true, data: rows[0] });
+        const newUser = rows[0];
+
+        // 2. 👈 Update role in the employees table as well
+        if (employeeId) {
+            await pool.query(
+                `UPDATE employees SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`,
+                [role, employeeId]
+            );
+        }
+
+        return res.status(201).json({ success: true, data: newUser });
     } catch (err) {
         console.error('❌ Failed to create user:', err);
         return res.status(500).json({ error: err.message || 'Internal Server Error' });
@@ -143,13 +155,25 @@ export const updateUser = async (req, res) => {
             RETURNING *;
         `;
         
-        // Pass hashedPassword into the query parameters instead of the plaintext password
         const values = [employeeId, departmentId, designationId, username, fullName, email, mobile, role, status, hashedPassword, pin, id];
 
         const { rows } = await pool.query(query, values);
         if (rows.length === 0) return res.status(404).json({ error: 'User not found.' });
 
-        return res.status(200).json({ success: true, data: rows[0] });
+        const updatedUser = rows[0];
+
+        // 3. 👈 Sync role changes to the corresponding employee record if employee_id exists
+        const targetEmpId = employeeId || updatedUser.employee_id;
+        const targetRole = role || updatedUser.role;
+
+        if (targetEmpId && targetRole) {
+            await pool.query(
+                `UPDATE employees SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`,
+                [targetRole, targetEmpId]
+            );
+        }
+
+        return res.status(200).json({ success: true, data: updatedUser });
     } catch (err) {
         console.error('❌ Failed to update user:', err);
         return res.status(500).json({ error: err.message || 'Internal Server Error' });

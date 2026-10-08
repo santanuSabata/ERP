@@ -1,9 +1,9 @@
 import pool from '../../db.js';
 
-// Get All Leads with Search, Filtering, and Pagination
+// Get All Leads with Search, Filtering (Status, Insurance, Date Range), and Pagination
 export const getLeads = async (req, res) => {
     try {
-        const { search = '', status = 'All', insuranceType = 'All', page = 1, limit = 10 } = req.query;
+        const { search = '', status = 'All', insuranceType = 'All', fromDate = '', toDate = '', page = 1, limit = 10 } = req.query;
         const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
         const searchFilter = `%${search}%`;
 
@@ -20,6 +20,20 @@ export const getLeads = async (req, res) => {
         if (insuranceType && insuranceType !== 'All') {
             queryConditions += ` AND l.insurance_type = $${paramIndex}`;
             queryParams.push(insuranceType);
+            paramIndex++;
+        }
+
+        // 👈 Filter by From Date if provided
+        if (fromDate && fromDate.trim() !== '') {
+            queryConditions += ` AND l.transaction_date::date >= $${paramIndex}::date`;
+            queryParams.push(fromDate);
+            paramIndex++;
+        }
+
+        // 👈 Filter by To Date if provided
+        if (toDate && toDate.trim() !== '') {
+            queryConditions += ` AND l.transaction_date::date <= $${paramIndex}::date`;
+            queryParams.push(toDate);
             paramIndex++;
         }
 
@@ -60,7 +74,7 @@ export const getLeads = async (req, res) => {
     }
 };
 
-// Create Single Lead (Supports multiple phones, emails, and discussions)
+// Create Single Lead (Includes duplicate email & phone validation)
 export const createLead = async (req, res) => {
     try {
         const { 
@@ -84,8 +98,39 @@ export const createLead = async (req, res) => {
             createdBy,
             phones,
             emails,
-            discussions
+            discussions,
+            files
         } = req.body;
+
+        const trimmedEmail = email ? email.trim().toLowerCase() : null;
+        const trimmedPhone = phone ? phone.trim() : null;
+
+        // 👈 Backend Duplicate Validation Check
+        if (trimmedEmail || trimmedPhone) {
+            let dupQuery = `SELECT id, company_name, email, phone FROM leads WHERE `;
+            let dupParams = [];
+            
+            if (trimmedEmail && trimmedPhone) {
+                dupQuery += `LOWER(email) = $1 OR phone = $2`;
+                dupParams = [trimmedEmail, trimmedPhone];
+            } else if (trimmedEmail) {
+                dupQuery += `LOWER(email) = $1`;
+                dupParams = [trimmedEmail];
+            } else {
+                dupQuery += `phone = $1`;
+                dupParams = [trimmedPhone];
+            }
+
+            const existingCheck = await pool.query(dupQuery, dupParams);
+            if (existingCheck.rows.length > 0) {
+                const match = existingCheck.rows[0];
+                const matchType = (match.email && match.email.toLowerCase() === trimmedEmail) ? 'Email Address' : 'Phone Number';
+                return res.status(400).json({ 
+                    success: false, 
+                    error: `Duplicate Error: A lead with this ${matchType} already exists (${match.company_name})!` 
+                });
+            }
+        }
 
         const query = `
             INSERT INTO leads (
@@ -156,6 +201,18 @@ export const createLead = async (req, res) => {
             }
         }
 
+        // Insert multiple files into lead_files table
+        if (Array.isArray(files)) {
+            for (const f of files) {
+                if (f.name && f.url) {
+                    await pool.query(
+                        `INSERT INTO lead_files (lead_id, file_name, file_url, file_type, created_by) VALUES ($1, $2, $3, $4, $5)`,
+                        [newLead.id, f.name, f.url, f.type || 'image', createdBy || 'Admin']
+                    );
+                }
+            }
+        }
+
         // Log initial assignment if agent exists
         if (agentId) {
             await pool.query(
@@ -171,7 +228,7 @@ export const createLead = async (req, res) => {
     }
 };
 
-// Update Lead (Logs assignment change to history & syncs phones/emails safely)
+// Update Lead (Includes duplicate email & phone validation excluding current ID)
 export const updateLead = async (req, res) => {
     try {
         const leadId = parseInt(req.params.id, 10);
@@ -199,8 +256,39 @@ export const updateLead = async (req, res) => {
             changedBy,
             phones,
             emails,
-            discussions
+            discussions,
+            files
         } = req.body;
+
+        const trimmedEmail = email ? email.trim().toLowerCase() : null;
+        const trimmedPhone = phone ? phone.trim() : null;
+
+        // 👈 Backend Duplicate Validation Check (Excluding current lead)
+        if (trimmedEmail || trimmedPhone) {
+            let dupQuery = `SELECT id, company_name, email, phone FROM leads WHERE id != $1 AND (`;
+            let dupParams = [leadId];
+            
+            if (trimmedEmail && trimmedPhone) {
+                dupQuery += `LOWER(email) = $2 OR phone = $3)`;
+                dupParams.push(trimmedEmail, trimmedPhone);
+            } else if (trimmedEmail) {
+                dupQuery += `LOWER(email) = $2)`;
+                dupParams.push(trimmedEmail);
+            } else {
+                dupQuery += `phone = $2)`;
+                dupParams.push(trimmedPhone);
+            }
+
+            const existingCheck = await pool.query(dupQuery, dupParams);
+            if (existingCheck.rows.length > 0) {
+                const match = existingCheck.rows[0];
+                const matchType = (match.email && match.email.toLowerCase() === trimmedEmail) ? 'Email Address' : 'Phone Number';
+                return res.status(400).json({ 
+                    success: false, 
+                    error: `Duplicate Error: Another lead already uses this ${matchType} (${match.company_name})!` 
+                });
+            }
+        }
 
         // 1. Fetch current lead data to check previous agent ID
         const currentLeadRes = await pool.query('SELECT agent_id FROM leads WHERE id = $1', [leadId]);
@@ -298,7 +386,22 @@ export const updateLead = async (req, res) => {
             }
         }
 
-        // 6. Log into history if agent changed
+        // 6. Update multiple files if provided
+        if (Array.isArray(files)) {
+            await pool.query('DELETE FROM lead_files WHERE lead_id = $1', [leadId]);
+            for (const f of files) {
+                const fileName = f.file_name || f.name;
+                const fileUrl = f.file_url || f.url;
+                if (fileName && fileUrl) {
+                    await pool.query(
+                        `INSERT INTO lead_files (lead_id, file_name, file_url, file_type, created_by) VALUES ($1, $2, $3, $4, $5)`,
+                        [leadId, fileName, fileUrl, f.file_type || f.type || 'image', changedBy || 'Admin']
+                    );
+                }
+            }
+        }
+
+        // 7. Log into history if agent changed
         if (previousAgentId !== parsedNewAgentId) {
             await pool.query(
                 `INSERT INTO lead_assignment_history (lead_id, previous_agent_id, new_agent_id, changed_by) VALUES ($1, $2, $3, $4)`,
@@ -379,7 +482,7 @@ export const bulkUploadLeads = async (req, res) => {
     }
 };
 
-// Get Single Lead by ID (Includes multiple phones, emails, discussions, and assignment history)
+// Get Single Lead by ID
 export const getLeadById = async (req, res) => {
     try {
         const leadId = parseInt(req.params.id, 10);
@@ -404,12 +507,11 @@ export const getLeadById = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Lead not found.' });
         }
 
-        // Fetch related relational records
         const phonesRes = await pool.query('SELECT * FROM lead_phones WHERE lead_id = $1 ORDER BY id ASC;', [leadId]);
         const emailsRes = await pool.query('SELECT * FROM lead_emails WHERE lead_id = $1 ORDER BY id ASC;', [leadId]);
         const discussionsRes = await pool.query('SELECT * FROM lead_discussions WHERE lead_id = $1 ORDER BY id DESC;', [leadId]);
+        const filesRes = await pool.query('SELECT * FROM lead_files WHERE lead_id = $1 ORDER BY id DESC;', [leadId]);
 
-        // Fetch Assignment History with agent names
         const historyQuery = `
             SELECT h.*, 
                    pa.name AS prev_agent_name, 
@@ -429,11 +531,37 @@ export const getLeadById = async (req, res) => {
                 phones: phonesRes.rows,
                 emails: emailsRes.rows,
                 discussions: discussionsRes.rows,
+                files: filesRes.rows,
                 assignment_history: historyRes.rows
             } 
         });
     } catch (err) {
         console.error('❌ Get lead by ID error:', err);
         return res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    }
+};
+
+export const getLeadMetricsSummary = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                l.agent_id,
+                COALESCE(e.name, 'Unassigned') AS agent_name,
+                COUNT(l.id) AS total_leads,
+                SUM(CASE WHEN l.status = 'New' THEN 1 ELSE 0 END) AS new_count,
+                SUM(CASE WHEN l.status = 'Contacted' THEN 1 ELSE 0 END) AS contacted_count,
+                SUM(CASE WHEN l.status = 'Interested' THEN 1 ELSE 0 END) AS interested_count,
+                SUM(CASE WHEN l.status = 'Converted' THEN 1 ELSE 0 END) AS converted_count,
+                SUM(l.policy_value) AS total_portfolio_value
+            FROM leads l
+            LEFT JOIN employees e ON l.agent_id = e.id
+            GROUP BY l.agent_id, e.name;
+        `;
+
+        const { rows } = await pool.query(query);
+        return res.status(200).json({ success: true, metrics: rows });
+    } catch (err) {
+        console.error('❌ Failed to fetch lead metrics summary:', err);
+        return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 };

@@ -133,9 +133,8 @@ const leadsMasterGroup = {
     label: 'CRM',
     icon: Target,
     children: [
-        { to: '/leads/dashboard', label: 'Lead Dashboard', icon: BarChart3 },
-        { to: '/leads', label: 'All Leads', icon: ClipboardList },
-        { to: '/leads/edit/:id', label: 'Edit Lead', icon: ClipboardList },
+        { to: '/crm/leads-dashboard', label: 'Lead Dashboard', icon: BarChart3 },
+        { to: '/crm/leads', label: 'All Leads', icon: ClipboardList },
         { to: '/crm-settings', label: 'CRM Settings', icon: Settings },
     ],
 };

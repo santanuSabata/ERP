@@ -60,6 +60,7 @@ const AddLead = ({ leadId, onClose, onSuccess }) => {
     const [products, setProducts] = useState([]);
     const [dealStages, setDealStages] = useState([]);
     const [leadStages, setLeadStages] = useState([]);
+    const [existingLeads, setExistingLeads] = useState([]);
     const [submitting, setSubmitting] = useState(false);
     const [availableCities, setAvailableCities] = useState([]);
 
@@ -87,11 +88,28 @@ const AddLead = ({ leadId, onClose, onSuccess }) => {
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                const empRes = await api.get('/hr/employees').catch(() => api.get('/employees'));
-                const empData = empRes.data?.employees || empRes.data?.data || empRes.data || [];
-                setEmployees(Array.isArray(empData) ? empData : []);
+                // 👈 Try fetching strictly from users endpoint with role query
+                const empRes = await api.get('/users', { params: { role: 'Agent' } }).catch(() => api.get('/employees'));
+                
+                // 👈 Safely extract the array from the response object (.data)
+                const rawData = empRes.data?.users || empRes.data?.employees || empRes.data?.data || empRes.data || [];
+                const empData = Array.isArray(rawData) ? rawData : [];
+
+                console.log('🔍 Users table API Response Data:', empData);
+                setEmployees(empData);
             } catch (e) {
-                console.warn('Employees fetch skipped/failed', e);
+                console.warn('Users fetch skipped/failed', e);
+                setEmployees([]);
+            }
+
+            
+            try {
+                const leadsRes = await api.get('/leads?limit=1000');
+                if (leadsRes.data?.success) {
+                    setExistingLeads(leadsRes.data.leads || []);
+                }
+            } catch (e) {
+                console.warn('Leads fetch for duplication check failed', e);
             }
 
             try {
@@ -159,6 +177,14 @@ const AddLead = ({ leadId, onClose, onSuccess }) => {
         fetchInitialData();
     }, [leadId, isEditMode]);
 
+    // 👈 Double-check filtering on the frontend for role = "agent"
+    const agentEmployees = employees.filter(emp => {
+        const roleName = emp.role || emp.designation || emp.role_name || '';
+        return roleName.toLowerCase() === 'Agent'.toLowerCase() || roleName.toLowerCase() === 'agent'.toLowerCase();
+    });
+
+    console.log('✅ Filtered Agent Employees:', agentEmployees);
+
     const handleStateChange = (e) => {
         const selectedState = e.target.value;
         setFormData(prev => ({ ...prev, state: selectedState, city: '' }));
@@ -171,6 +197,24 @@ const AddLead = ({ leadId, onClose, onSuccess }) => {
 
     const handleSaveLead = async (e) => {
         e.preventDefault();
+
+        const trimmedEmail = formData.email.trim().toLowerCase();
+        const trimmedPhone = formData.phone.trim();
+
+        const duplicateLead = existingLeads.find(l => {
+            if (isEditMode && String(l.id) === String(leadId)) return false;
+
+            const matchesEmail = trimmedEmail && l.email && l.email.toLowerCase() === trimmedEmail;
+            const matchesPhone = trimmedPhone && l.phone && l.phone === trimmedPhone;
+            return matchesEmail || matchesPhone;
+        });
+
+        if (duplicateLead) {
+            const matchType = duplicateLead.email?.toLowerCase() === trimmedEmail ? 'Email Address' : 'Phone Number';
+            toast.error(`Duplicate Warning: A lead with this ${matchType} already exists (${duplicateLead.company_name})!`);
+            return;
+        }
+
         try {
             setSubmitting(true);
             const payload = {
@@ -215,7 +259,7 @@ const AddLead = ({ leadId, onClose, onSuccess }) => {
             <div className="absolute inset-0 bg-slate-900/75 backdrop-blur-2xs transition-opacity" onClick={onClose} />
 
             <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-                <div className="w-screen md:w-[50vw] min-w-[700px] bg-white shadow-2xl flex flex-col justify-between transform transition-transform ease-in-out duration-300">
+                <div className="w-screen md:w-[40vw] min-w-[700px] bg-white shadow-2xl flex flex-col justify-between transform transition-transform ease-in-out duration-300">
                     
                     {/* Drawer Header */}
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -393,7 +437,7 @@ const AddLead = ({ leadId, onClose, onSuccess }) => {
                                         className="w-full p-3 rounded-xl border border-slate-200 text-xs bg-white font-semibold cursor-pointer"
                                     >
                                         <option value="">-- Unassigned --</option>
-                                        {employees.map(emp => (
+                                        {agentEmployees.map(emp => (
                                             <option key={emp.id} value={emp.id}>
                                                 {emp.name || emp.full_name} ({emp.mobile_number || emp.mobile || 'Agent'})
                                             </option>

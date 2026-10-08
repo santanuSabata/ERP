@@ -2,9 +2,28 @@ import pool from '../../db.js';
 
 export const getEmployees = async (req, res) => {
     try {
-        const { companyId = 2, search = '', page = 1, limit = 10 } = req.query;
+        const { companyId = 2, search = '', role = '', page = 1, limit = 10 } = req.query;
         const offset = (page - 1) * limit;
         const searchFilter = `%${search}%`;
+
+        // Base conditions array for dynamic query construction
+        let conditions = `(e.first_name ILIKE $1 OR e.last_name ILIKE $1 OR e.name ILIKE $1 OR e.employee_id ILIKE $1 OR e.email_address ILIKE $1 OR dept.name ILIKE $1 OR desig.name ILIKE $1)`;
+        let queryParams = [searchFilter];
+        let paramIndex = 2;
+
+        // Optional company ID filter if your table supports it
+        if (companyId) {
+            conditions += ` AND e.company_id = $${paramIndex}`;
+            queryParams.push(companyId);
+            paramIndex++;
+        }
+
+        // 👈 Optional role filter check
+        if (role && role.trim() !== '') {
+            conditions += ` AND LOWER(e.role) = LOWER($${paramIndex})`;
+            queryParams.push(role.trim());
+            paramIndex++;
+        }
 
         const query = `
             SELECT e.*, 
@@ -13,9 +32,9 @@ export const getEmployees = async (req, res) => {
             FROM employees e
             LEFT JOIN departments dept ON e.department_id = dept.id
             LEFT JOIN designations desig ON e.designation_id = desig.id
-            WHERE (e.first_name ILIKE $1 OR e.last_name ILIKE $1 OR e.name ILIKE $1 OR e.employee_id ILIKE $1 OR e.email_address ILIKE $1 OR dept.name ILIKE $1 OR desig.name ILIKE $1)
+            WHERE ${conditions}
             ORDER BY e.id DESC
-            LIMIT $2 OFFSET $3;
+            LIMIT $${paramIndex} OFFSET $${paramIndex + 1};
         `;
 
         const countQuery = `
@@ -23,12 +42,13 @@ export const getEmployees = async (req, res) => {
             FROM employees e
             LEFT JOIN departments dept ON e.department_id = dept.id
             LEFT JOIN designations desig ON e.designation_id = desig.id
-            WHERE (e.first_name ILIKE $1 OR e.last_name ILIKE $1 OR e.name ILIKE $1 OR e.employee_id ILIKE $1 OR e.email_address ILIKE $1 OR dept.name ILIKE $1 OR desig.name ILIKE $1);
+            WHERE ${conditions};
         `;
 
+        // Pass limit and offset for the main query, and just the filters for the count query
         const [result, countResult] = await Promise.all([
-            pool.query(query, [searchFilter, limit, offset]),
-            pool.query(countQuery, [searchFilter])
+            pool.query(query, [...queryParams, limit, offset]),
+            pool.query(countQuery, queryParams)
         ]);
 
         return res.status(200).json({
@@ -242,5 +262,27 @@ export const deleteEmployee = async (req, res) => {
     } catch (err) {
         console.error('❌ Failed to delete employee:', err);
         return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+// Get Users by Role (e.g. Agent)
+export const getUsersByRole = async (req, res) => {
+    try {
+        const { role = 'Agent' } = req.query;
+        const query = `
+            SELECT id, name, full_name, email, mobile, role 
+            FROM users 
+            WHERE LOWER(role) = LOWER($1) 
+            ORDER BY id ASC;
+        `;
+        const { rows } = await pool.query(query, [role]);
+
+        return res.status(200).json({
+            success: true,
+            employees: rows // kept as 'employees' key for seamless frontend compatibility
+        });
+    } catch (err) {
+        console.error('❌ Get users by role error:', err);
+        return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 };

@@ -8,9 +8,11 @@ import {
 import toast from 'react-hot-toast';
 import api from '../../lib/axios.js';
 
-const LeadView = ({ leadId: propLeadId }) => {
+const LeadView = ({ leadId, id: propId }) => {
     const { id: paramId } = useParams();
-    const id = propLeadId || paramId; // 👈 Fallback to prop if opened inside a modal
+    // Resolves ID from prop (leadId or id) or URL route parameters
+    const activeId = leadId || propId || paramId;
+    
     const navigate = useNavigate();
     const [lead, setLead] = useState(null);
     const [employees, setEmployees] = useState([]);
@@ -18,6 +20,7 @@ const LeadView = ({ leadId: propLeadId }) => {
     const [selectedAgent, setSelectedAgent] = useState('');
     const [noteContent, setNoteContent] = useState('');
     const [savingNote, setSavingNote] = useState(false);
+    const [uploadingFiles, setUploadingFiles] = useState(false); // 👈 File upload state
 
     // Modal States
     const [showPhoneModal, setShowPhoneModal] = useState(false);
@@ -30,18 +33,25 @@ const LeadView = ({ leadId: propLeadId }) => {
     const [submittingContact, setSubmittingContact] = useState(false);
 
     const fetchLeadDetails = async () => {
-        if (!id) return;
+        if (!activeId) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
-            const res = await api.get(`/leads/${id}`);
+            const res = await api.get(`/leads/${activeId}`);
             if (res.data?.success) {
                 const leadData = res.data.lead || res.data.data;
                 setLead(leadData);
-                setSelectedAgent(leadData.agent_id || '');
-                setNoteContent(leadData.remarks || '');
+                setSelectedAgent(leadData?.agent_id ? String(leadData.agent_id) : '');
+                setNoteContent(leadData?.remarks || '');
+            } else {
+                setLead(null);
+                toast.error('Could not fetch lead details.');
             }
         } catch (err) {
             console.error('Failed to load lead details:', err);
+            setLead(null);
             toast.error('Could not fetch lead details.');
         } finally {
             setLoading(false);
@@ -59,15 +69,19 @@ const LeadView = ({ leadId: propLeadId }) => {
             }
         };
         fetchEmployees();
+    }, []);
+
+    // Trigger fetch whenever activeId changes
+    useEffect(() => {
         fetchLeadDetails();
-    }, [id]);
+    }, [activeId]);
 
     const handleReassignAgent = async () => {
         try {
             const assignedEmp = employees.find(e => String(e.id) === String(selectedAgent));
             const changedByName = assignedEmp ? (assignedEmp.name || assignedEmp.full_name) : 'Admin';
 
-            await api.put(`/leads/${id}`, { 
+            await api.put(`/leads/${activeId}`, { 
                 agentId: selectedAgent ? parseInt(selectedAgent, 10) : null,
                 changedBy: changedByName
             });
@@ -82,7 +96,7 @@ const LeadView = ({ leadId: propLeadId }) => {
     const handleSaveNotes = async () => {
         try {
             setSavingNote(true);
-            await api.put(`/leads/${id}`, { remarks: noteContent });
+            await api.put(`/leads/${activeId}`, { remarks: noteContent });
             toast.success('Notes updated successfully!');
         } catch (err) {
             console.error('Save notes error:', err);
@@ -98,7 +112,7 @@ const LeadView = ({ leadId: propLeadId }) => {
         try {
             setSubmittingContact(true);
             const updatedPhones = [...(lead.phones || []), { phone_label: newPhone.label, phone_number: newPhone.number, name: newPhone.name, description: newPhone.description }];
-            await api.put(`/leads/${id}`, { phones: updatedPhones.map(p => ({ label: p.phone_label || p.label, number: p.phone_number || p.number, name: p.name || '', description: p.description || '' })) });
+            await api.put(`/leads/${activeId}`, { phones: updatedPhones.map(p => ({ label: p.phone_label || p.label, number: p.phone_number || p.number, name: p.name || '', description: p.description || '' })) });
             toast.success('Phone number added successfully!');
             setNewPhone({ label: 'Work', number: '', name: '', description: '' });
             setShowPhoneModal(false);
@@ -116,7 +130,7 @@ const LeadView = ({ leadId: propLeadId }) => {
         try {
             setSubmittingContact(true);
             const updatedEmails = [...(lead.emails || []), { email_label: newEmail.label, email_address: newEmail.address, name: newEmail.name, description: newEmail.description }];
-            await api.put(`/leads/${id}`, { emails: updatedEmails.map(em => ({ label: em.email_label || em.label, address: em.email_address || em.address, name: em.name || '', description: em.description || '' })) });
+            await api.put(`/leads/${activeId}`, { emails: updatedEmails.map(em => ({ label: em.email_label || em.label, address: em.email_address || em.address, name: em.name || '', description: em.description || '' })) });
             toast.success('Email address added successfully!');
             setNewEmail({ label: 'Work', address: '', name: '', description: '' });
             setShowEmailModal(false);
@@ -134,7 +148,7 @@ const LeadView = ({ leadId: propLeadId }) => {
         try {
             setSubmittingContact(true);
             const updatedDiscussions = [...(lead.discussions || []), { subject: newDiscussion.subject || 'General Discussion', discussion_text: newDiscussion.text }];
-            await api.put(`/leads/${id}`, { discussions: updatedDiscussions.map(d => ({ subject: d.subject, text: d.discussion_text || d.text })) });
+            await api.put(`/leads/${activeId}`, { discussions: updatedDiscussions.map(d => ({ subject: d.subject, text: d.discussion_text || d.text })) });
             toast.success('Discussion added successfully!');
             setNewDiscussion({ subject: '', text: '' });
             setShowDiscussionModal(false);
@@ -146,10 +160,36 @@ const LeadView = ({ leadId: propLeadId }) => {
         }
     };
 
+    // 👈 Multiple File Upload Handler
+    const handleFileUpload = async (e) => {
+        const uploadedFiles = Array.from(e.target.files);
+        if (uploadedFiles.length === 0) return;
+
+        try {
+            setUploadingFiles(true);
+            const newFiles = uploadedFiles.map(file => ({
+                name: file.name,
+                url: URL.createObjectURL(file), // Local preview URL
+                type: file.type
+            }));
+
+            const updatedFiles = [...(lead.files || []), ...newFiles];
+            await api.put(`/leads/${activeId}`, { files: updatedFiles.map(f => ({ name: f.file_name || f.name, url: f.file_url || f.url, type: f.file_type || f.type })) });
+            
+            toast.success('Files uploaded successfully!');
+            fetchLeadDetails();
+        } catch (err) {
+            console.error('File upload error:', err);
+            toast.error('Failed to upload files.');
+        } finally {
+            setUploadingFiles(false);
+        }
+    };
+
     const handleDeletePhone = async (phoneId) => {
         try {
             const updatedPhones = (lead.phones || []).filter(p => p.id !== phoneId);
-            await api.put(`/leads/${id}`, { phones: updatedPhones.map(p => ({ label: p.phone_label, number: p.phone_number, name: p.name, description: p.description })) });
+            await api.put(`/leads/${activeId}`, { phones: updatedPhones.map(p => ({ label: p.phone_label, number: p.phone_number, name: p.name, description: p.description })) });
             toast.success('Phone removed successfully!');
             fetchLeadDetails();
         } catch (err) {
@@ -160,7 +200,7 @@ const LeadView = ({ leadId: propLeadId }) => {
     const handleDeleteEmail = async (emailId) => {
         try {
             const updatedEmails = (lead.emails || []).filter(em => em.id !== emailId);
-            await api.put(`/leads/${id}`, { emails: updatedEmails.map(em => ({ label: em.email_label, address: em.email_address, name: em.name, description: em.description })) });
+            await api.put(`/leads/${activeId}`, { emails: updatedEmails.map(em => ({ label: em.email_label, address: em.email_address, name: em.name, description: em.description })) });
             toast.success('Email removed successfully!');
             fetchLeadDetails();
         } catch (err) {
@@ -171,11 +211,22 @@ const LeadView = ({ leadId: propLeadId }) => {
     const handleDeleteDiscussion = async (discId) => {
         try {
             const updatedDiscussions = (lead.discussions || []).filter(d => d.id !== discId);
-            await api.put(`/leads/${id}`, { discussions: updatedDiscussions.map(d => ({ subject: d.subject, text: d.discussion_text })) });
+            await api.put(`/leads/${activeId}`, { discussions: updatedDiscussions.map(d => ({ subject: d.subject, text: d.discussion_text })) });
             toast.success('Discussion deleted successfully!');
             fetchLeadDetails();
         } catch (err) {
             toast.error('Failed to delete discussion.');
+        }
+    };
+
+    const handleDeleteFile = async (fileId) => {
+        try {
+            const updatedFiles = (lead.files || []).filter(f => f.id !== fileId);
+            await api.put(`/leads/${activeId}`, { files: updatedFiles.map(f => ({ name: f.file_name, url: f.file_url, type: f.file_type })) });
+            toast.success('File removed successfully!');
+            fetchLeadDetails();
+        } catch (err) {
+            toast.error('Failed to remove file.');
         }
     };
 
@@ -189,9 +240,11 @@ const LeadView = ({ leadId: propLeadId }) => {
 
     if (!lead) {
         return (
-            <div className="p-6 text-center">
-                <p className="text-sm font-bold text-slate-700">Lead not found.</p>
-                <button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl">Go Back</button>
+            <div className="p-8 text-center space-y-3">
+                <p className="text-sm font-bold text-slate-700">Lead not found (ID: {activeId || 'None'}).</p>
+                {!leadId && !propId && (
+                    <button onClick={() => navigate(-1)} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl cursor-pointer">Go Back</button>
+                )}
             </div>
         );
     }
@@ -202,7 +255,7 @@ const LeadView = ({ leadId: propLeadId }) => {
             {/* Breadcrumb & Top Header Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-2xl shadow-md">
                 <div className="flex items-center gap-3">
-                    {propLeadId ? null : (
+                    {!(leadId || propId) && (
                         <button onClick={() => navigate(-1)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl transition cursor-pointer text-slate-300">
                             <ArrowLeft size={16} />
                         </button>
@@ -423,7 +476,7 @@ const LeadView = ({ leadId: propLeadId }) => {
                     <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-200 flex items-center justify-between">
                         <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase">Files</p>
-                            <p className="text-sm font-black text-slate-900 mt-0.5">0</p>
+                            <p className="text-sm font-black text-slate-900 mt-0.5">{lead.files?.length || 0}</p>
                         </div>
                         <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl"><Upload size={16} /></div>
                     </div>
@@ -434,66 +487,6 @@ const LeadView = ({ leadId: propLeadId }) => {
                         </div>
                         <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl"><Shield size={16} /></div>
                     </div>
-                </div>
-
-                {/* Users & Products Data Tables */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
-                    {/* Users Table */}
-                    <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Users</h3>
-                            <button className="p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition cursor-pointer"><Plus size={14} /></button>
-                        </div>
-                        <table className="w-full text-left text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100 text-slate-400 uppercase font-bold text-[10px]">
-                                    <th className="pb-2">Name</th>
-                                    <th className="pb-2 text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr className="border-b border-slate-50">
-                                    <td className="py-3 font-semibold text-slate-800 flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center font-bold text-[10px]">
-                                            {lead.agent_name ? lead.agent_name.charAt(0) : 'A'}
-                                        </div>
-                                        {lead.agent_name || 'Unassigned'}
-                                    </td>
-                                    <td className="py-3 text-right">
-                                        <button className="p-1.5 bg-rose-50 text-rose-600 rounded-lg"><Trash2 size={12} /></button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Products Table */}
-                    <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Products</h3>
-                            <button className="p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition cursor-pointer"><Plus size={14} /></button>
-                        </div>
-                        <table className="w-full text-left text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100 text-slate-400 uppercase font-bold text-[10px]">
-                                    <th className="pb-2">Name</th>
-                                    <th className="pb-2">Price</th>
-                                    <th className="pb-2 text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr className="border-b border-slate-50">
-                                    <td className="py-3 font-semibold text-slate-800">{lead.insurance_type}</td>
-                                    <td className="py-3 font-mono font-bold text-slate-600">₹ {Number(lead.policy_value || 0).toLocaleString()}</td>
-                                    <td className="py-3 text-right">
-                                        <button className="p-1.5 bg-rose-50 text-rose-600 rounded-lg"><Trash2 size={12} /></button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
                 </div>
 
                 {/* Phones & Emails Tables */}
@@ -580,7 +573,7 @@ const LeadView = ({ leadId: propLeadId }) => {
                 {/* Discussions & Notes Section */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
-                    {/* Multiple Discussions Section (With Modal Trigger Plus Button) */}
+                    {/* Multiple Discussions Section */}
                     <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-4">
                         <div className="flex items-center justify-between">
                             <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
@@ -612,8 +605,6 @@ const LeadView = ({ leadId: propLeadId }) => {
                     {/* Notes with Rich Text Toolbar */}
                     <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-3">
                         <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Notes</h3>
-                        
-                        {/* Rich Text Toolbar Mock */}
                         <div className="flex items-center gap-1.5 p-1 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 flex-wrap">
                             <button className="p-1.5 hover:bg-slate-200 rounded"><Bold size={13} /></button>
                             <button className="p-1.5 hover:bg-slate-200 rounded"><Italic size={13} /></button>
@@ -627,7 +618,6 @@ const LeadView = ({ leadId: propLeadId }) => {
                             <button className="p-1.5 hover:bg-slate-200 rounded"><List size={13} /></button>
                             <button className="p-1.5 hover:bg-slate-200 rounded"><LinkIcon size={13} /></button>
                         </div>
-
                         <textarea 
                             rows={4}
                             value={noteContent}
@@ -648,13 +638,45 @@ const LeadView = ({ leadId: propLeadId }) => {
 
                 </div>
 
-                {/* Files Section */}
+                {/* 👈 Multiple Files & Images Uploader Section */}
                 <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Files</h3>
+                        <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                            <ImageIcon size={14} className="text-blue-600" /> Files & Images ({lead.files?.length || 0})
+                        </h3>
+                        <label className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition cursor-pointer text-xs font-bold flex items-center gap-1">
+                            <Plus size={14} /> Add Files
+                            <input type="file" multiple accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} className="hidden" />
+                        </label>
                     </div>
-                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center bg-slate-50 hover:bg-slate-100/50 transition cursor-pointer">
-                        <p className="text-xs font-bold text-slate-500">Drop files here to upload</p>
+
+                    {uploadingFiles && <p className="text-xs text-blue-600 font-semibold animate-pulse">Uploading files...</p>}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {lead.files && lead.files.length > 0 ? (
+                            lead.files.map((file, idx) => (
+                                <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 relative group">
+                                    {file.file_type?.startsWith('image') || file.type?.startsWith('image') || file.file_url?.match(/\.(jpeg|jpg|png|gif)$/i) ? (
+                                        <div className="w-full h-24 bg-slate-200 rounded-lg overflow-hidden flex items-center justify-center">
+                                            <img src={file.file_url || file.url} alt={file.file_name || file.name} className="w-full h-full object-cover" />
+                                        </div>
+                                    ) : (
+                                        <div className="w-full h-24 bg-blue-50 text-blue-600 rounded-lg flex flex-col items-center justify-center font-bold text-[10px]">
+                                            <FileText size={24} /> Document
+                                        </div>
+                                    )}
+                                    <p className="text-[11px] font-bold text-slate-700 truncate">{file.file_name || file.name}</p>
+                                    <div className="flex items-center justify-between pt-1">
+                                        <a href={file.file_url || file.url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 font-bold hover:underline">View</a>
+                                        <button onClick={() => handleDeleteFile(file.id)} className="text-rose-500 hover:text-rose-700"><Trash2 size={12} /></button>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="col-span-full border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center bg-slate-50">
+                                <p className="text-xs font-bold text-slate-400">No files or images uploaded yet. Click "Add Files" above.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
