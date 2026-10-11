@@ -349,53 +349,48 @@ CREATE TABLE IF NOT EXISTS designations (
 
 
 -- 17. Employees Master Table
-CREATE TABLE employees (
-    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    name VARCHAR(255) NOT NULL, -- Combined full name
-    employee_id VARCHAR(100) UNIQUE,
-    date_of_joining DATE NOT NULL,
-    department_id INT NOT NULL,
-    designation_id INT NOT NULL,
-    employment_type VARCHAR(50) NOT NULL,
-    reporting_manager VARCHAR(255),
-    gender VARCHAR(50) NOT NULL,
-    marital_status VARCHAR(50),
-    blood_group VARCHAR(20),
-    employee_status VARCHAR(50) DEFAULT 'Active',
-    photo VARCHAR(500), -- File path or URL
-    
-    -- Contact & Address Details
-    email_address VARCHAR(255) NOT NULL UNIQUE,
-    mobile_number VARCHAR(50) NOT NULL,
+CREATE TABLE IF NOT EXISTS employees (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    name VARCHAR(255) NOT NULL,
+    employee_id VARCHAR(50) UNIQUE,
+    date_of_joining DATE,
+    department_id INTEGER,
+    designation_id INTEGER,
+    employment_type VARCHAR(50),
+    reporting_manager VARCHAR(100),
+    gender VARCHAR(20),
+    marital_status VARCHAR(20),
+    blood_group VARCHAR(10),
+    employee_status VARCHAR(50),
+    photo VARCHAR(500),
+    email_address VARCHAR(255),
+    mobile_number VARCHAR(50),
     alternate_number VARCHAR(50),
-    country VARCHAR(100) DEFAULT 'India',
-    additional_info VARCHAR(100),
-    address_line_1 VARCHAR(255) NOT NULL,
+    country VARCHAR(100),
+    additional_info TEXT,
+    address_line_1 VARCHAR(255),
     address_line_2 VARCHAR(255),
-    city VARCHAR(100) NOT NULL,
-    state VARCHAR(100) NOT NULL,
-    pin_code VARCHAR(20) NOT NULL,
-
-    -- Salary Structure (Monthly figures)
-    basic_salary NUMERIC(10, 2) DEFAULT 0.00,
-    hra NUMERIC(10, 2) DEFAULT 0.00,
-    conveyance NUMERIC(10, 2) DEFAULT 1600.00,
-    medical NUMERIC(10, 2) DEFAULT 1250.00,
-    special_allowance NUMERIC(10, 2) DEFAULT 0.00,
-    gross_salary NUMERIC(10, 2) DEFAULT 0.00,
-    pf NUMERIC(10, 2) DEFAULT 0.00,
-    prof_tax NUMERIC(10, 2) DEFAULT 200.00,
-    tds NUMERIC(10, 2) DEFAULT 0.00,
-    other_deductions NUMERIC(10, 2) DEFAULT 0.00,
-    total_deductions NUMERIC(10, 2) DEFAULT 0.00,
-    net_salary NUMERIC(10, 2) DEFAULT 0.00,
-
-    FOREIGN KEY (department_id) REFERENCES departments(id),
-    FOREIGN KEY (designation_id) REFERENCES designations(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    city VARCHAR(100),
+    state VARCHAR(100),
+    pin_code VARCHAR(20),
+    basic_salary NUMERIC(12, 2) DEFAULT 0.00,
+    hra NUMERIC(12, 2) DEFAULT 0.00,
+    conveyance NUMERIC(12, 2) DEFAULT 0.00,
+    medical NUMERIC(12, 2) DEFAULT 0.00,
+    special_allowance NUMERIC(12, 2) DEFAULT 0.00,
+    gross_salary NUMERIC(12, 2) DEFAULT 0.00,
+    pf NUMERIC(12, 2) DEFAULT 0.00,
+    prof_tax NUMERIC(12, 2) DEFAULT 0.00,
+    tds NUMERIC(12, 2) DEFAULT 0.00,
+    other_deductions NUMERIC(12, 2) DEFAULT 0.00,
+    total_deductions NUMERIC(12, 2) DEFAULT 0.00,
+    net_salary NUMERIC(12, 2) DEFAULT 0.00,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    role VARCHAR(50),
+    company_id INTEGER DEFAULT 2
 );
 
 -- 4. Employee Qualifications Table (Supports dynamic multiple rows)
@@ -618,6 +613,8 @@ CREATE TABLE IF NOT EXISTS crm_deal_stages (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
+
 -- 4. Sources Table
 CREATE TABLE IF NOT EXISTS crm_sources (
     id SERIAL PRIMARY KEY,
@@ -675,9 +672,11 @@ CREATE TABLE IF NOT EXISTS lead_assignment_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS lead_phones (
+CREATE TABLE IF NOT EXISTS  lead_phones (
     id SERIAL PRIMARY KEY,
     lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    name VARCHAR(100),
+    description TEXT,
     phone_label VARCHAR(50) DEFAULT 'Work',
     phone_number VARCHAR(50) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -698,4 +697,24 @@ CREATE TABLE IF NOT EXISTS lead_discussions (
     discussion_text TEXT NOT NULL,
     created_by VARCHAR(150) DEFAULT 'Admin',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lead_calls (
+    id SERIAL PRIMARY KEY,
+    lead_id INT REFERENCES leads(id) ON DELETE CASCADE,
+    subject VARCHAR(255) NOT NULL,
+    call_type VARCHAR(50) DEFAULT 'Outbound',
+    duration VARCHAR(50) DEFAULT '00:00',
+    user_name VARCHAR(100) DEFAULT 'Admin',
+    remarks TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS signatures (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER DEFAULT 2,
+    name VARCHAR(255) NOT NULL,
+    signature_url VARCHAR(500),
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

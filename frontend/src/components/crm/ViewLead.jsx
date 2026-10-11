@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
     Building2, User, Mail, Phone, Calendar, ArrowLeft, 
@@ -20,17 +20,60 @@ const LeadView = ({ leadId, id: propId }) => {
     const [selectedAgent, setSelectedAgent] = useState('');
     const [noteContent, setNoteContent] = useState('');
     const [savingNote, setSavingNote] = useState(false);
-    const [uploadingFiles, setUploadingFiles] = useState(false); // 👈 File upload state
+    const [uploadingFiles, setUploadingFiles] = useState(false);
+
+    // Call Timer States
+    const [isCalling, setIsCalling] = useState(false);
+    const [callSeconds, setCallSeconds] = useState(0);
+
+    // Break Timer States
+    const [breakType, setBreakType] = useState('');
+    const [isOnBreak, setIsOnBreak] = useState(false);
+    const [breakSeconds, setBreakSeconds] = useState(0);
 
     // Modal States
     const [showPhoneModal, setShowPhoneModal] = useState(false);
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [showDiscussionModal, setShowDiscussionModal] = useState(false);
+    const [showCallModal, setShowCallModal] = useState(false);
 
     const [newPhone, setNewPhone] = useState({ label: 'Work', number: '', name: '', description: '' });
     const [newEmail, setNewEmail] = useState({ label: 'Work', address: '', name: '', description: '' });
     const [newDiscussion, setNewDiscussion] = useState({ subject: '', text: '' });
+    const [newCall, setNewCall] = useState({ subject: '', callType: 'Outbound', duration: '00:00', userName: 'Admin', remarks: '' });
     const [submittingContact, setSubmittingContact] = useState(false);
+
+    // Call Timer Effect
+    useEffect(() => {
+        let timer;
+        if (isCalling) {
+            timer = setInterval(() => {
+                setCallSeconds(prev => prev + 1);
+            }, 1000);
+        } else {
+            clearInterval(timer);
+        }
+        return () => clearInterval(timer);
+    }, [isCalling]);
+
+    // Break Timer Effect
+    useEffect(() => {
+        let breakTimer;
+        if (isOnBreak) {
+            breakTimer = setInterval(() => {
+                setBreakSeconds(prev => prev + 1);
+            }, 1000);
+        } else {
+            clearInterval(breakTimer);
+        }
+        return () => clearInterval(breakTimer);
+    }, [isOnBreak]);
+
+    const formatTime = (totalSeconds) => {
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
 
     const fetchLeadDetails = async () => {
         if (!activeId) {
@@ -71,7 +114,6 @@ const LeadView = ({ leadId, id: propId }) => {
         fetchEmployees();
     }, []);
 
-    // Trigger fetch whenever activeId changes
     useEffect(() => {
         fetchLeadDetails();
     }, [activeId]);
@@ -160,7 +202,24 @@ const LeadView = ({ leadId, id: propId }) => {
         }
     };
 
-    // 👈 Multiple File Upload Handler
+    const handleAddCallSubmit = async (e) => {
+        e.preventDefault();
+        if (!newCall.subject.trim()) return;
+        try {
+            setSubmittingContact(true);
+            const updatedCalls = [...(lead.calls || []), { subject: newCall.subject, call_type: newCall.callType, duration: newCall.duration, user_name: newCall.userName, remarks: newCall.remarks }];
+            await api.put(`/leads/${activeId}`, { calls: updatedCalls });
+            toast.success('Call log added successfully!');
+            setNewCall({ subject: '', callType: 'Outbound', duration: '00:00', userName: 'Admin', remarks: '' });
+            setShowCallModal(false);
+            fetchLeadDetails();
+        } catch (err) {
+            toast.error('Failed to add call log.');
+        } finally {
+            setSubmittingContact(false);
+        }
+    };
+
     const handleFileUpload = async (e) => {
         const uploadedFiles = Array.from(e.target.files);
         if (uploadedFiles.length === 0) return;
@@ -169,7 +228,7 @@ const LeadView = ({ leadId, id: propId }) => {
             setUploadingFiles(true);
             const newFiles = uploadedFiles.map(file => ({
                 name: file.name,
-                url: URL.createObjectURL(file), // Local preview URL
+                url: URL.createObjectURL(file),
                 type: file.type
             }));
 
@@ -359,7 +418,7 @@ const LeadView = ({ leadId, id: propId }) => {
                         <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Assignment</h3>
                         <div>
                             <p className="text-[11px] text-slate-400 font-semibold">Currently assigned to</p>
-                            <div className="mt-1 inline-block px-3 py-1 bg-amber-500 text-white rounded-lg text-xs font-bold shadow-xs">
+                            <div className="mt-1 inline-block px-3 py-1 bg-transparent text-amber-600 border border-amber-500 rounded-lg text-xs font-bold shadow-xs">
                                 {lead.agent_name || 'Unassigned'}
                             </div>
                         </div>
@@ -378,7 +437,7 @@ const LeadView = ({ leadId, id: propId }) => {
                         </div>
                         <button 
                             onClick={handleReassignAgent}
-                            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer"
+                            className="w-full py-2.5 bg-transparent hover:bg-amber-50 text-amber-600 border border-amber-500 text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
                         >
                             Reassign
                         </button>
@@ -401,7 +460,7 @@ const LeadView = ({ leadId, id: propId }) => {
                                                     <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-semibold text-[11px] border border-emerald-200">{newName}</span>
                                                 </div>
                                                 <p className="text-[11px] text-slate-500 mt-1 font-normal">
-                                                    by <strong className="text-slate-700">{hist.changed_by || 'Admin'}</strong> • {dateStr}
+                                                    by <strong className="text-slate-700">{hist.changed_by || 'Admin'}</strong> on {dateStr}
                                                 </p>
                                             </div>
                                         );
@@ -433,24 +492,132 @@ const LeadView = ({ leadId, id: propId }) => {
                             </div>
                         </div>
                     </div>
-
-                    {/* Lead Progress Section */}
+                    
+                    {/* Lead Activity & Call Controls */}
                     <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-4">
                         <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Lead Progress</h3>
-                        <div className="space-y-3">
-                            <div>
-                                <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                                    <span>20% through pipeline</span>
-                                    <span>20%</span>
-                                </div>
-                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-blue-600 h-full rounded-full" style={{ width: '20%' }}></div>
+                        
+                        {/* Break Status Widget with Live Timer & Close Toggle */}
+                        <div className="space-y-3 pt-1">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-cyan-400 flex items-center justify-center text-white shadow-xs">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3m6-3v3"/></svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-800">Break</h4>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-medium ${isOnBreak ? 'text-emerald-600 font-bold animate-pulse' : 'text-slate-400'}`}>
+                                                {isOnBreak ? `On Break (${formatTime(breakSeconds)})` : 'Not on break'}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="space-y-1 text-xs pt-2">
-                                <div className="flex justify-between py-1 border-b border-slate-50"><span className="text-slate-400">Pipeline Stage:</span> <strong className="text-slate-800">Sales</strong></div>
-                                <div className="flex justify-between py-1 border-b border-slate-50"><span className="text-slate-400">Kanban Stage:</span> <strong className="text-slate-800">{lead.lead_stage_name || '-'}</strong></div>
-                                <div className="flex justify-between py-1 border-b border-slate-50"><span className="text-slate-400">Created:</span> <strong className="text-slate-800">{lead.created_at?.split('T')[0] || '-'}</strong></div>
+                            <div className="flex items-center gap-2">
+                                <select 
+                                    disabled={isOnBreak}
+                                    value={breakType} 
+                                    onChange={(e) => setBreakType(e.target.value)} 
+                                    className={`w-full text-xs font-medium text-slate-700 bg-white border rounded-lg px-2.5 py-1.5 outline-none ${isOnBreak ? 'border-slate-200 bg-slate-50 opacity-60' : 'border-cyan-500 focus:ring-1 focus:ring-cyan-500'}`}
+                                >
+                                    <option value="">Select Break</option>
+                                    <option value="lunch">Lunch Break</option>
+                                    <option value="tea">Tea Break</option>
+                                    <option value="short">Short Break</option>
+                                </select>
+                                <button 
+                                    type="button"
+                                    onClick={async () => {
+                                        if (isOnBreak) {
+                                            setIsOnBreak(false);
+                                            setBreakSeconds(0);
+                                            setBreakType('');
+                                            toast.success('Break ended');
+                                        } else {
+                                            if (!breakType) {
+                                                toast.error('Please select a break type first');
+                                                return;
+                                            }
+                                            setIsOnBreak(true);
+                                            toast.success('Break started');
+                                            
+                                            // Optionally log activity to database
+                                            try {
+                                                const storedAgent = JSON.parse(localStorage.getItem('agentUser') || '{}');
+                                                if (storedAgent.id || storedAgent.employeeId) {
+                                                    await api.post('/employee-activities', {
+                                                        employeeId: storedAgent.employeeId || storedAgent.id,
+                                                        activityType: `Break (${breakType})`,
+                                                        status: 'In Progress',
+                                                        remarks: 'Agent went on break'
+                                                    });
+                                                }
+                                            } catch (err) {
+                                                console.warn('Activity log note skipped');
+                                            }
+                                        }
+                                    }}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${
+                                        isOnBreak 
+                                            ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200' 
+                                            : 'text-cyan-600 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200'
+                                    }`}
+                                >
+                                    {isOnBreak ? 'Close' : 'Start'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Call Action Controls */}
+                        <div className="space-y-3 pt-2"> 
+                            <div className="pt-3 border-t border-slate-100 space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Call Controls</span>
+                                    {isCalling && (
+                                        <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 animate-pulse">
+                                            ⏱ {formatTime(callSeconds)}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setIsCalling(true);
+                                            console.log('Call Started');
+                                        }}
+                                        disabled={isCalling}
+                                        className={`w-full py-2 px-3 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                                            isCalling 
+                                                ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200' 
+                                                : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
+                                        }`}
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                                        Start Call
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            const finalDuration = formatTime(callSeconds);
+                                            setIsCalling(false);
+                                            setCallSeconds(0);
+                                            setNewCall(prev => ({ ...prev, duration: finalDuration, subject: `Call with ${lead.company_name || 'Lead'}` }));
+                                            setShowCallModal(true);
+                                            console.log('Call Ended');
+                                        }}
+                                        disabled={!isCalling}
+                                        className={`w-full py-2 px-3 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                                            !isCalling 
+                                                ? 'opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200' 
+                                                : 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200'
+                                        }`}
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 8l-8 8m0-8l8 8M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                                        End Call
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -592,7 +759,7 @@ const LeadView = ({ leadId, id: propId }) => {
                                                 <button onClick={() => handleDeleteDiscussion(d.id)} className="text-rose-500 hover:text-rose-700 opacity-80 hover:opacity-100 transition"><Trash2 size={12} /></button>
                                             </div>
                                             <p className="text-xs text-slate-600 whitespace-pre-wrap">{d.discussion_text}</p>
-                                            <p className="text-[10px] text-slate-400 pt-1">by {d.created_by || 'Admin'} • {dateStr}</p>
+                                            <p className="text-[10px] text-slate-400 pt-1">by {d.created_by || 'Admin'} on {dateStr}</p>
                                         </div>
                                     );
                                 })
@@ -638,7 +805,7 @@ const LeadView = ({ leadId, id: propId }) => {
 
                 </div>
 
-                {/* 👈 Multiple Files & Images Uploader Section */}
+                {/* Multiple Files & Images Uploader Section */}
                 <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-4">
                     <div className="flex items-center justify-between">
                         <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
@@ -684,7 +851,7 @@ const LeadView = ({ leadId, id: propId }) => {
                 <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-4">
                     <div className="flex items-center justify-between">
                         <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Calls</h3>
-                        <button className="p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition cursor-pointer"><Plus size={14} /></button>
+                        <button onClick={() => setShowCallModal(true)} className="p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition cursor-pointer"><Plus size={14} /></button>
                     </div>
                     <table className="w-full text-left text-xs">
                         <thead>
@@ -692,14 +859,38 @@ const LeadView = ({ leadId, id: propId }) => {
                                 <th className="pb-2">Subject</th>
                                 <th className="pb-2">Call Type</th>
                                 <th className="pb-2">Duration</th>
+                                <th className="pb-2">Remarks</th>
                                 <th className="pb-2">User</th>
                                 <th className="pb-2 text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td colSpan="5" className="py-6 text-center text-slate-400 text-xs">No Calls Available!</td>
-                            </tr>
+                            {lead.calls && lead.calls.length > 0 ? (
+                                lead.calls.map((c, idx) => (
+                                    <tr key={idx} className="border-b border-slate-50">
+                                        <td className="py-2.5 font-bold text-slate-700">{c.subject}</td>
+                                        <td className="py-2.5">
+                                            <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded font-semibold text-[10px]">{c.call_type}</span>
+                                        </td>
+                                        <td className="py-2.5 font-mono text-slate-600">{c.duration}</td>
+                                        <td className="py-2.5 text-slate-600 max-w-xs truncate" title={c.remarks}>{c.remarks || '-'}</td>
+                                        <td className="py-2.5 text-slate-600">{c.user_name || 'Admin'}</td>
+                                        <td className="py-2.5 text-right">
+                                            <button onClick={() => {
+                                                const updated = lead.calls.filter((_, i) => i !== idx);
+                                                api.put(`/leads/${activeId}`, { calls: updated }).then(() => {
+                                                    toast.success('Call log removed');
+                                                    fetchLeadDetails();
+                                                });
+                                            }} className="p-1 bg-rose-50 text-rose-600 rounded-md"><Trash2 size={12} /></button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="6" className="py-6 text-center text-slate-400 text-xs">No Calls Available!</td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -819,6 +1010,48 @@ const LeadView = ({ leadId, id: propId }) => {
                                 <button type="button" onClick={() => setShowDiscussionModal(false)} className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
                                 <button type="submit" disabled={submittingContact} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-md">
                                     {submittingContact ? 'Posting...' : 'Post Discussion'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Add Call Activity */}
+            {showCallModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs font-sans">
+                    <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <h3 className="text-sm font-black text-slate-900">Add Call Log</h3>
+                            <button onClick={() => setShowCallModal(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"><X size={16} /></button>
+                        </div>
+                        <form onSubmit={handleAddCallSubmit} className="space-y-3">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-700">Subject / Purpose</label>
+                                <input type="text" required value={newCall.subject} onChange={(e) => setNewCall({ ...newCall, subject: e.target.value })} placeholder="e.g. Follow-up on Quotation" className="w-full p-2.5 rounded-xl border border-slate-200 text-xs" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-700">Call Type</label>
+                                    <select value={newCall.callType} onChange={(e) => setNewCall({ ...newCall, callType: e.target.value })} className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-white font-semibold">
+                                        <option value="Outbound">Outbound</option>
+                                        <option value="Inbound">Inbound</option>
+                                        <option value="Missed">Missed</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-700">Duration (MM:SS)</label>
+                                    <input type="text" value={newCall.duration} onChange={(e) => setNewCall({ ...newCall, duration: e.target.value })} placeholder="02:45" className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 font-bold" />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-700">Call Remarks / Notes</label>
+                                <textarea rows={3} value={newCall.remarks} onChange={(e) => setNewCall({ ...newCall, remarks: e.target.value })} placeholder="Enter call discussion notes..." className="w-full p-2.5 rounded-xl border border-slate-200 text-xs" />
+                            </div>
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <button type="button" onClick={() => setShowCallModal(false)} className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+                                <button type="submit" disabled={submittingContact} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-md">
+                                    {submittingContact ? 'Saving...' : 'Save Call Log'}
                                 </button>
                             </div>
                         </form>

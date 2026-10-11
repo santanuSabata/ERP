@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Upload, FileSpreadsheet, Trash2, Edit3, Eye, LayoutGrid, List, Building2, User, Calendar, ChevronLeft, ChevronRight, UserCheck, ChevronDown, Download, FileText } from 'lucide-react';
+import { Search, Plus, Upload, FileSpreadsheet, Trash2, Edit3, Eye, LayoutGrid, List, Building2, User, Calendar, ChevronLeft, ChevronRight, UserCheck, ChevronDown, Download, FileText, Users, UserX } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/axios.js';
 import AddLead from '../../components/crm/AddLead.jsx';
@@ -14,11 +14,12 @@ const Leads = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [insuranceFilter, setInsuranceFilter] = useState('All');
-    const [agentFilter, setAgentFilter] = useState('All'); // 👈 Agent-wise filter state
+    const [agentFilter, setAgentFilter] = useState('All');
+    const [assignmentFilter, setAssignmentFilter] = useState('All'); // 👈 Assigned vs Unassigned filter state
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
     const [page, setPage] = useState(1);
-    const [limit, setLimit] = useState(20); // Rows per page state (20, 50, 100, All)
+    const [limit, setLimit] = useState(20);
     const [totalPages, setTotalPages] = useState(1);
     const [totalLeads, setTotalLeads] = useState(0);
 
@@ -59,7 +60,8 @@ const Leads = () => {
                     search, 
                     status: statusFilter, 
                     insuranceType: insuranceFilter, 
-                    agentId: agentFilter === 'All' ? undefined : agentFilter, // 👈 Send agentId filter to backend
+                    agentId: agentFilter === 'All' ? undefined : agentFilter,
+                    assignmentStatus: assignmentFilter, // 👈 Send assignment status filter to backend
                     fromDate: fromDate || undefined, 
                     toDate: toDate || undefined, 
                     page, 
@@ -109,7 +111,11 @@ const Leads = () => {
     useEffect(() => {
         fetchLeads();
         fetchEmployees();
-    }, [search, statusFilter, insuranceFilter, agentFilter, fromDate, toDate, page, limit]);
+    }, [search, statusFilter, insuranceFilter, agentFilter, assignmentFilter, fromDate, toDate, page, limit]);
+
+    // Computed Assigned & Not Assigned Counts based on current loaded list
+    const assignedCount = leads.filter(l => l.agent_id !== null && l.agent_id !== undefined && l.agent_id !== '').length;
+    const notAssignedCount = leads.filter(l => l.agent_id === null || l.agent_id === undefined || l.agent_id === '').length;
 
     const getAgentName = (agentId) => {
         if (!agentId) return 'Unassigned';
@@ -153,8 +159,6 @@ const Leads = () => {
         }
 
         try {
-            console.log(`🚀 Starting bulk assignment of ${selectedLeadIds.length} leads to Agent ID: ${bulkAgentId}`);
-
             const updatePromises = selectedLeadIds.map(async (id) => {
                 try {
                     return await api.put(`/leads/${id}`, { 
@@ -188,9 +192,11 @@ const Leads = () => {
             const text = evt.target.result;
             const lines = text.split('\n');
             const parsedLeads = [];
+            
             for (let i = 1; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
-                const values = lines[i].split(',').map(v => v.trim());
+                const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                
                 parsedLeads.push({
                     transaction_id: values[0] || `TXN-${Date.now()}-${i}`,
                     transaction_date: values[1] || new Date().toISOString().split('T')[0],
@@ -199,9 +205,9 @@ const Leads = () => {
                     contact_person: values[4] || 'Contact Person',
                     email: values[5] || '',
                     phone: values[6] || '9876543210',
-                    insurance_type: values[7] || 'General Insurance',
+                    insurance_type: values[7] || 'Group Health Insurance',
                     policy_value: parseFloat(values[8]) || 100000,
-                    transaction_type: values[9] || 'New Policy',
+                    transaction_type: values[9] || 'Fresh',
                     status: values[10] || 'New',
                     remarks: values[11] || ''
                 });
@@ -215,7 +221,8 @@ const Leads = () => {
                     fetchLeads();
                 }
             } catch (err) {
-                toast.error('CSV upload failed.');
+                console.error('CSV upload error:', err);
+                toast.error(err.response?.data?.error || 'CSV upload failed.');
             }
         };
         reader.readAsText(file);
@@ -309,6 +316,31 @@ const Leads = () => {
                 </div>
             </div>
 
+            {/* Total Leads, Assigned Leads, & Not Assigned Counter Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <span className="text-slate-400 text-xs block font-semibold">Total Leads</span>
+                        <h3 className="text-xl font-extrabold text-slate-900 mt-1 font-mono">{totalLeads}</h3>
+                    </div>
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><Users size={20} /></div>
+                </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <span className="text-slate-400 text-xs block font-semibold">Assigned Leads</span>
+                        <h3 className="text-xl font-extrabold text-emerald-600 mt-1 font-mono">{assignedCount}</h3>
+                    </div>
+                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl"><UserCheck size={20} /></div>
+                </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs flex items-center justify-between">
+                    <div>
+                        <span className="text-slate-400 text-xs block font-semibold">Not Assigned Leads</span>
+                        <h3 className="text-xl font-extrabold text-amber-600 mt-1 font-mono">{notAssignedCount}</h3>
+                    </div>
+                    <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl"><UserX size={20} /></div>
+                </div>
+            </div>
+
             {/* Search, Filters, Date Range Filter & View Toggle */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
                 <div className="relative flex-1 w-full max-w-sm">
@@ -343,7 +375,18 @@ const Leads = () => {
                         )}
                     </div>
 
-                    {/* 👈 Agent-wise Filter Dropdown */}
+                    {/* 👈 Assignment Status Filter (Assigned / Unassigned) */}
+                    <select 
+                        value={assignmentFilter} 
+                        onChange={(e) => { setAssignmentFilter(e.target.value); setPage(1); }}
+                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold cursor-pointer"
+                    >
+                        <option value="All">All Assignments</option>
+                        <option value="Assigned">Assigned Leads</option>
+                        <option value="Unassigned">Not Assigned Leads</option>
+                    </select>
+
+                    {/* Agent-wise Filter Dropdown */}
                     <select 
                         value={agentFilter} 
                         onChange={(e) => { setAgentFilter(e.target.value); setPage(1); }}
@@ -480,7 +523,7 @@ const Leads = () => {
                                 </div>
                                 <div className="col-span-3">
                                     <strong className="text-slate-900 block flex items-center gap-1.5"><Building2 size={13} className="text-blue-600" />{lead.company_name}</strong>
-                                    <span className="text-[11px] text-slate-500">{lead.contact_person} • {lead.phone}</span>
+                                    <span className="text-[11px] text-slate-500">{lead.contact_person} | {lead.phone}</span>
                                 </div>
                                 <div className="col-span-2">
                                     <div className="font-semibold text-slate-700">{lead.insurance_type}</div>

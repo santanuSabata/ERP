@@ -57,6 +57,8 @@ import AddLead from './components/crm/AddLead.jsx';
 import LeadView from './components/crm/ViewLead.jsx';
 import CrmSettings from './pages/crm/CrmSettings.jsx';
 import LeadsDashboard from './pages/crm/LeadsDashboard.jsx';
+import UploadLeadsPreview from './components/crm/UploadLeadsPreview.jsx';
+
 
 
 //Agents (Standalone - No Sidebar)
@@ -89,7 +91,6 @@ const App = () => {
                 <Route path="/customer/add" element={<AddCustomer />} />
                 <Route path="/customers/edit/:id" element={<AddCustomer />} />
                                 
-
                 // CRM Routes:
                 <Route path="/crm/leads" element={<Leads />} />
                 <Route path="/crm/leads/add" element={<AddLead />} />
@@ -97,6 +98,7 @@ const App = () => {
                 <Route path="/crm-settings" element={<CrmSettings />} />
                 <Route path="/leads/view/:id" element={<LeadView />} />
                 <Route path="/crm/leads-dashboard" element={<LeadsDashboard />} />
+                <Route path="/crm/upload-preview" element={<UploadLeadsPreview />} />
 
                 {/* Vendors Routes */}
                 <Route path="/vendors" element={<Vendors />} />

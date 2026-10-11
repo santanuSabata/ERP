@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Search, Users, PhoneCall, CheckCircle, Clock, LogOut, RefreshCw, LayoutDashboard, UserCheck, Briefcase, CalendarCheck, FileText, BarChart3, Building2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Users, PhoneCall, CheckCircle, Clock, LogOut, RefreshCw, LayoutDashboard, UserCheck, Briefcase, CalendarCheck, FileText, BarChart3, Building2, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/axios.js';
 import { useNavigate } from 'react-router-dom';
+import LeadView from '../../components/crm/ViewLead.jsx';
 
 const AgentDashboard = () => {
     const navigate = useNavigate();
     const [agent, setAgent] = useState(null);
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'leads' | 'followups' | 'policies' | 'reports' | 'profile'
+    const [viewingLeadId, setViewingLeadId] = useState(null);
 
     const [leads, setLeads] = useState([]);
     const [stats, setStats] = useState({});
@@ -19,6 +21,12 @@ const AgentDashboard = () => {
     const [newStatus, setNewStatus] = useState('New');
     const [newRemarks, setNewRemarks] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // Attendance Clock State
+    const [isClockedIn, setIsClockedIn] = useState(false);
+
+    // Calendar View State
+    const [calendarView, setCalendarView] = useState('Month'); // 'Day' | 'Week' | 'Month'
 
     // 🔒 Protect Dashboard: Check session on mount
     useEffect(() => {
@@ -49,8 +57,36 @@ const AgentDashboard = () => {
             });
 
             if (res.data?.success) {
-                setLeads(res.data.leads || []);
-                setStats(res.data.stats || {});
+                const fetchedLeads = res.data.leads || [];
+                const fetchedStats = res.data.stats || {};
+                
+                setLeads(fetchedLeads);
+                setStats(fetchedStats);
+
+                // 👈 Auto-assign up to 10 unassigned leads if current assigned leads < 10
+                if (fetchedLeads.length < 10) {
+                    try {
+                        const unassignedRes = await api.get('/leads', { params: { assignmentStatus: 'Unassigned', limit: 10 - fetchedLeads.length } });
+                        const unassignedLeads = unassignedRes.data?.leads || [];
+
+                        if (unassignedLeads.length > 0) {
+                            const assignPromises = unassignedLeads.map(lead => 
+                                api.put(`/leads/${lead.id}`, { agentId: agentId, agent_id: agentId })
+                            );
+                            await Promise.all(assignPromises);
+                            
+                            // Re-fetch leads after auto-assignment
+                            const refetchRes = await api.get('/agent/leads', { params: { agentId, status: statusFilter, search: searchQuery } });
+                            if (refetchRes.data?.success) {
+                                setLeads(refetchRes.data.leads || []);
+                                setStats(refetchRes.data.stats || {});
+                            }
+                            toast.success(`Automatically assigned ${unassignedLeads.length} new leads to your portfolio!`);
+                        }
+                    } catch (autoAssignErr) {
+                        console.warn('Auto-assignment background check skipped:', autoAssignErr);
+                    }
+                }
             }
         } catch (err) {
             console.error('Failed to load agent leads:', err);
@@ -104,7 +140,7 @@ const AgentDashboard = () => {
     if (!agent) return null;
 
     return (
-        <div className="w-full px-4 sm:px-6 lg:px-8 space-y-6 pb-20 font-sans text-slate-900 bg-slate-50 min-h-screen">
+        <div className="w-full px-4 sm:px-6 lg:px-8 space-y-6 pb-20 font-sans text-slate-900 bg-slate-50 min-h-screen relative">
             
             {/* Header Navigation Bar */}
             <div className="bg-white px-6 py-4 rounded-3xl border border-slate-200/80 shadow-2xs mt-4 flex flex-col lg:flex-row items-center justify-between gap-4">
@@ -194,6 +230,101 @@ const AgentDashboard = () => {
                         </div>
                     </div>
 
+                    {/* Attendance & Announcement Cards */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-6">
+                            <h3 className="text-sm font-extrabold text-slate-900">Mark Attendance</h3>
+                            <div className="flex items-center justify-between pt-2">
+                                <p className="text-xs text-slate-400 font-medium">My Office Time: 09:00 to 18:00</p>
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setIsClockedIn(true);
+                                            toast.success('Clocked In successfully!');
+                                        }}
+                                        disabled={isClockedIn}
+                                        className={`px-6 py-2.5 rounded-xl text-xs font-bold tracking-wider transition shadow-sm cursor-pointer ${
+                                            isClockedIn 
+                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' 
+                                                : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                                        }`}
+                                    >
+                                        CLOCK IN
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setIsClockedIn(false);
+                                            toast.success('Clocked Out successfully!');
+                                        }}
+                                        disabled={!isClockedIn}
+                                        className={`px-6 py-2.5 rounded-xl text-xs font-bold tracking-wider transition shadow-sm cursor-pointer ${
+                                            !isClockedIn 
+                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' 
+                                                : 'bg-rose-400 hover:bg-rose-500 text-white'
+                                        }`}
+                                    >
+                                        CLOCK OUT
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
+                            <h3 className="text-sm font-extrabold text-slate-900">Announcement List</h3>
+                            <div className="border-t border-slate-100 pt-3 text-center py-6 text-xs text-slate-400">
+                                There is no Announcement List
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* EVENT CALENDAR & MEETING LIST SECTION */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-6">
+                            <h3 className="text-sm font-extrabold text-slate-900">Event</h3>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                                <div className="flex items-center gap-1.5">
+                                    <button className="p-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl transition cursor-pointer"><ChevronLeft size={14} /></button>
+                                    <button className="p-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl transition cursor-pointer"><ChevronRight size={14} /></button>
+                                    <button className="px-3 py-1.5 bg-teal-600/80 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition cursor-pointer">Today</button>
+                                </div>
+                                <h4 className="text-sm font-black text-slate-800 tracking-wide">OCTOBER 2026</h4>
+                                <div className="flex bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold">
+                                    {['Day', 'Week', 'Month'].map(v => (
+                                        <button 
+                                            key={v}
+                                            onClick={() => setCalendarView(v)}
+                                            className={`px-3 py-1 rounded-lg transition cursor-pointer ${calendarView === v ? 'bg-teal-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                                        >
+                                            {v}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="border border-slate-100 rounded-2xl overflow-hidden text-xs">
+                                <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100 text-center font-bold text-slate-500 py-2 text-[10px] uppercase">
+                                    <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                                </div>
+                                <div className="grid grid-cols-7 text-center divide-x divide-y divide-slate-100 text-slate-700 font-medium">
+                                    <div className="p-3 text-slate-300">27</div><div className="p-3 text-slate-300">28</div><div className="p-3 text-slate-300">29</div><div className="p-3 text-slate-300">30</div><div className="p-3">1</div><div className="p-3">2</div><div className="p-3">3</div>
+                                    <div className="p-3">4</div><div className="p-3">5</div><div className="p-3">6</div><div className="p-3">7</div><div className="p-3">8</div><div className="p-3">9</div><div className="p-3">10</div>
+                                    <div className="p-3 bg-amber-50 font-bold text-amber-800">11</div><div className="p-3">12</div><div className="p-3">13</div><div className="p-3">14</div><div className="p-3">15</div><div className="p-3">16</div><div className="p-3">17</div>
+                                    <div className="p-3">18</div><div className="p-3">19</div><div className="p-3">20</div><div className="p-3">21</div><div className="p-3">22</div><div className="p-3">23</div><div className="p-3">24</div>
+                                    <div className="p-3">25</div><div className="p-3">26</div><div className="p-3">27</div><div className="p-3">28</div><div className="p-3">29</div><div className="p-3">30</div><div className="p-3">31</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4 flex flex-col justify-between">
+                            <h3 className="text-sm font-extrabold text-slate-900">Meeting List</h3>
+                            <div className="border-t border-slate-100 pt-6 text-center py-20 text-xs text-slate-400">
+                                No meeting scheduled yet.
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
                         <h2 className="text-sm font-bold text-slate-900">Corporate Insurance Performance Summary</h2>
                         <p className="text-xs text-slate-400">Track your assigned corporate leads, policy values, and follow-up schedules using the navigation tabs above.</p>
@@ -248,12 +379,19 @@ const AgentDashboard = () => {
                                     <div key={lead.id} className="grid grid-cols-12 items-center px-6 py-4 hover:bg-slate-50">
                                         <div className="col-span-3">
                                             <strong className="text-slate-900 block flex items-center gap-1.5"><Building2 size={13} className="text-blue-600" />{lead.company_name}</strong>
-                                            <span className="text-[11px] text-slate-500">{lead.contact_person} • {lead.phone}</span>
+                                            <span className="text-[11px] text-slate-500">{lead.contact_person} | {lead.phone}</span>
                                         </div>
                                         <div className="col-span-3 font-semibold text-slate-700">{lead.insurance_type}</div>
                                         <div className="col-span-2 font-mono font-bold text-slate-900">₹{parseFloat(lead.policy_value || 0).toLocaleString()}</div>
                                         <div className="col-span-2">{getStatusBadge(lead.status || lead.lead_status)}</div>
-                                        <div className="col-span-2 text-right">
+                                        <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
+                                            <button 
+                                                onClick={() => setViewingLeadId(lead.id)}
+                                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer"
+                                                title="View Lead Details"
+                                            >
+                                                <Eye size={14} />
+                                            </button>
                                             <button 
                                                 onClick={() => { setActiveLead(lead); setNewStatus(lead.status || lead.lead_status); setNewRemarks(lead.remarks || ''); setIsModalOpen(true); }}
                                                 className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl text-xs transition cursor-pointer shadow-xs"
@@ -278,7 +416,7 @@ const AgentDashboard = () => {
                         {leads.filter(l => (l.status || l.lead_status) === 'Contacted' || (l.status || l.lead_status) === 'Interested').map(lead => (
                             <div key={lead.id} className="py-3 flex justify-between items-center text-xs">
                                 <div>
-                                    <strong className="text-slate-900">{lead.company_name}</strong> ({lead.contact_person} - {lead.phone})
+                                    <strong className="text-slate-900 cursor-pointer hover:underline" onClick={() => setViewingLeadId(lead.id)}>{lead.company_name}</strong> ({lead.contact_person} | {lead.phone})
                                     <p className="text-[11px] text-slate-400 mt-0.5">Remarks: {lead.remarks || 'No remarks added.'}</p>
                                 </div>
                                 <span className="px-2.5 py-1 bg-amber-50 text-amber-700 font-bold rounded-lg text-[10px]">{lead.status || lead.lead_status}</span>
@@ -297,7 +435,7 @@ const AgentDashboard = () => {
                         {leads.filter(l => (l.status || l.lead_status) === 'Converted').map(lead => (
                             <div key={lead.id} className="py-3 flex justify-between items-center text-xs">
                                 <div>
-                                    <strong className="text-slate-900">{lead.company_name}</strong> - {lead.insurance_type}
+                                    <strong className="text-slate-900 cursor-pointer hover:underline" onClick={() => setViewingLeadId(lead.id)}>{lead.company_name}</strong> | {lead.insurance_type}
                                     <p className="text-[11px] text-slate-400 font-mono">Value: ₹{parseFloat(lead.policy_value || 0).toLocaleString()} | Phone: {lead.phone}</p>
                                 </div>
                                 <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-lg text-[10px]">Converted</span>
@@ -397,6 +535,31 @@ const AgentDashboard = () => {
                     </div>
                 </div>
             )}
+
+            {/* SLIDE DRAWER FOR LEAD DETAILS (75% Width) */}
+            {viewingLeadId && (
+                <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
+                    <div className="w-full lg:w-3/4 bg-white h-full shadow-2xl flex flex-col overflow-y-auto animate-in slide-in-from-right duration-300">
+                        {/* Drawer Header Bar */}
+                        <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-2xs">
+                            <h2 className="text-xs font-black uppercase text-slate-800 tracking-wider">Lead Details Preview</h2>
+                            <button 
+                                onClick={() => setViewingLeadId(null)}
+                                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
+                                title="Close Drawer"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Drawer Body Content */}
+                        <div className="flex-1 p-4 sm:p-6 bg-slate-50">
+                            <LeadView leadId={viewingLeadId} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

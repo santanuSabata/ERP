@@ -68,9 +68,9 @@ import {
     ReceiptText,
     RefreshCw,
     ShieldCheck,
-    UserCheck,
     UserMinus,
-    Coins
+    Coins,
+    Upload // 👈 Use Upload instead of FileUpload
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -135,6 +135,7 @@ const leadsMasterGroup = {
     children: [
         { to: '/crm/leads-dashboard', label: 'Lead Dashboard', icon: BarChart3 },
         { to: '/crm/leads', label: 'All Leads', icon: ClipboardList },
+        { to: '/crm/upload-preview', label: 'Upload Preview', icon: Upload }, // 👈 Fixed icon reference here
         { to: '/crm-settings', label: 'CRM Settings', icon: Settings },
     ],
 };
@@ -219,7 +220,6 @@ const Sidebar = () => {
     const isSettingsRoute = location.pathname.startsWith('/settings') || location.pathname === '/company';
     const [settingsOpen, setSettingsOpen] = useState(isSettingsRoute);
 
-    // Helper to find which dropdown group contains the current path
     const getActiveGroupLabel = (pathname) => {
         if (leadsMasterGroup.children.some(child => pathname.startsWith(child.to))) return leadsMasterGroup.label;
         if (hrMasterGroup.children.some(child => pathname.startsWith(child.to))) return hrMasterGroup.label;
@@ -231,7 +231,6 @@ const Sidebar = () => {
         return null;
     };
 
-    // Accordion State: automatically open the group of the active route
     const [openDropdown, setOpenDropdown] = useState(() => getActiveGroupLabel(location.pathname));
 
     useEffect(() => {
@@ -250,7 +249,6 @@ const Sidebar = () => {
         const isOpen = openDropdown === group.label;
         const Icon = group.icon;
 
-        // Check if any child in this group is currently active
         const hasActiveChild = group.children.some(child => {
             if (child.to === '/') return location.pathname === '/';
             return location.pathname.startsWith(child.to);

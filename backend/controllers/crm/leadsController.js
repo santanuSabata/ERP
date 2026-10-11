@@ -23,14 +23,12 @@ export const getLeads = async (req, res) => {
             paramIndex++;
         }
 
-        // 👈 Filter by From Date if provided
         if (fromDate && fromDate.trim() !== '') {
             queryConditions += ` AND l.transaction_date::date >= $${paramIndex}::date`;
             queryParams.push(fromDate);
             paramIndex++;
         }
 
-        // 👈 Filter by To Date if provided
         if (toDate && toDate.trim() !== '') {
             queryConditions += ` AND l.transaction_date::date <= $${paramIndex}::date`;
             queryParams.push(toDate);
@@ -99,13 +97,13 @@ export const createLead = async (req, res) => {
             phones,
             emails,
             discussions,
-            files
+            files,
+            calls
         } = req.body;
 
         const trimmedEmail = email ? email.trim().toLowerCase() : null;
         const trimmedPhone = phone ? phone.trim() : null;
 
-        // 👈 Backend Duplicate Validation Check
         if (trimmedEmail || trimmedPhone) {
             let dupQuery = `SELECT id, company_name, email, phone FROM leads WHERE `;
             let dupParams = [];
@@ -165,7 +163,6 @@ export const createLead = async (req, res) => {
         const { rows } = await pool.query(query, values);
         const newLead = rows[0];
 
-        // Insert multiple phones into lead_phones table
         if (Array.isArray(phones)) {
             for (const p of phones) {
                 if (p.number) {
@@ -177,7 +174,6 @@ export const createLead = async (req, res) => {
             }
         }
 
-        // Insert multiple emails into lead_emails table
         if (Array.isArray(emails)) {
             for (const em of emails) {
                 if (em.address) {
@@ -189,7 +185,6 @@ export const createLead = async (req, res) => {
             }
         }
 
-        // Insert multiple discussions into lead_discussions table
         if (Array.isArray(discussions)) {
             for (const d of discussions) {
                 if (d.text) {
@@ -201,7 +196,6 @@ export const createLead = async (req, res) => {
             }
         }
 
-        // Insert multiple files into lead_files table
         if (Array.isArray(files)) {
             for (const f of files) {
                 if (f.name && f.url) {
@@ -213,7 +207,17 @@ export const createLead = async (req, res) => {
             }
         }
 
-        // Log initial assignment if agent exists
+        if (Array.isArray(calls)) {
+            for (const c of calls) {
+                if (c.subject) {
+                    await pool.query(
+                        `INSERT INTO lead_calls (lead_id, subject, call_type, duration, user_name, remarks) VALUES ($1, $2, $3, $4, $5, $6)`,
+                        [newLead.id, c.subject, c.call_type || c.callType || 'Outbound', c.duration || '00:00', c.user_name || c.userName || 'Admin', c.remarks || null]
+                    );
+                }
+            }
+        }
+
         if (agentId) {
             await pool.query(
                 `INSERT INTO lead_assignment_history (lead_id, previous_agent_id, new_agent_id, changed_by) VALUES ($1, NULL, $2, $3)`,
@@ -257,13 +261,13 @@ export const updateLead = async (req, res) => {
             phones,
             emails,
             discussions,
-            files
+            files,
+            calls
         } = req.body;
 
         const trimmedEmail = email ? email.trim().toLowerCase() : null;
         const trimmedPhone = phone ? phone.trim() : null;
 
-        // 👈 Backend Duplicate Validation Check (Excluding current lead)
         if (trimmedEmail || trimmedPhone) {
             let dupQuery = `SELECT id, company_name, email, phone FROM leads WHERE id != $1 AND (`;
             let dupParams = [leadId];
@@ -290,7 +294,6 @@ export const updateLead = async (req, res) => {
             }
         }
 
-        // 1. Fetch current lead data to check previous agent ID
         const currentLeadRes = await pool.query('SELECT agent_id FROM leads WHERE id = $1', [leadId]);
         if (currentLeadRes.rows.length === 0) {
             return res.status(404).json({ success: false, error: 'Lead not found.' });
@@ -298,7 +301,6 @@ export const updateLead = async (req, res) => {
         const previousAgentId = currentLeadRes.rows[0].agent_id;
         const parsedNewAgentId = agentId !== undefined && agentId !== null && agentId !== '' ? parseInt(agentId, 10) : null;
 
-        // 2. Perform Update on main leads table
         const query = `
             UPDATE leads 
             SET transaction_date = COALESCE(NULLIF($1, '')::date, transaction_date),
@@ -344,7 +346,6 @@ export const updateLead = async (req, res) => {
         const { rows } = await pool.query(query, values);
         const updatedLead = rows[0];
 
-        // 3. Update multiple phones if provided
         if (Array.isArray(phones)) {
             await pool.query('DELETE FROM lead_phones WHERE lead_id = $1', [leadId]);
             for (const p of phones) {
@@ -358,7 +359,6 @@ export const updateLead = async (req, res) => {
             }
         }
 
-        // 4. Update multiple emails if provided
         if (Array.isArray(emails)) {
             await pool.query('DELETE FROM lead_emails WHERE lead_id = $1', [leadId]);
             for (const em of emails) {
@@ -372,7 +372,6 @@ export const updateLead = async (req, res) => {
             }
         }
 
-        // 5. Update multiple discussions if provided
         if (Array.isArray(discussions)) {
             await pool.query('DELETE FROM lead_discussions WHERE lead_id = $1', [leadId]);
             for (const d of discussions) {
@@ -386,7 +385,6 @@ export const updateLead = async (req, res) => {
             }
         }
 
-        // 6. Update multiple files if provided
         if (Array.isArray(files)) {
             await pool.query('DELETE FROM lead_files WHERE lead_id = $1', [leadId]);
             for (const f of files) {
@@ -401,7 +399,18 @@ export const updateLead = async (req, res) => {
             }
         }
 
-        // 7. Log into history if agent changed
+        if (Array.isArray(calls)) {
+            await pool.query('DELETE FROM lead_calls WHERE lead_id = $1', [leadId]);
+            for (const c of calls) {
+                if (c.subject) {
+                    await pool.query(
+                        `INSERT INTO lead_calls (lead_id, subject, call_type, duration, user_name, remarks) VALUES ($1, $2, $3, $4, $5, $6)`,
+                        [leadId, c.subject, c.call_type || c.callType || 'Outbound', c.duration || '00:00', c.user_name || c.userName || 'Admin', c.remarks || null]
+                    );
+                }
+            }
+        }
+
         if (previousAgentId !== parsedNewAgentId) {
             await pool.query(
                 `INSERT INTO lead_assignment_history (lead_id, previous_agent_id, new_agent_id, changed_by) VALUES ($1, $2, $3, $4)`,
@@ -434,6 +443,21 @@ export const deleteLead = async (req, res) => {
     }
 };
 
+// Helper to convert DD/MM/YY or MM/DD/YY to YYYY-MM-DD for PostgreSQL
+const parseCSVDate = (dateStr) => {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const parts = dateStr.trim().split('/');
+    if (parts.length === 3) {
+        let [dayOrMonth, monthOrDay, year] = parts;
+        if (year.length === 2) {
+            year = `20${year}`; // Assumes 21st century (e.g., '26' -> '2026')
+        }
+        // Assuming DD/MM/YYYY format based on your CSV sample
+        return `${year}-${monthOrDay.padStart(2, '0')}-${dayOrMonth.padStart(2, '0')}`;
+    }
+    return dateStr; // Fallback if already in ISO or unparsable
+};
+
 // Bulk Upload Leads via CSV data payload
 export const bulkUploadLeads = async (req, res) => {
     try {
@@ -444,22 +468,26 @@ export const bulkUploadLeads = async (req, res) => {
 
         let insertedCount = 0;
         for (const l of leads) {
+            const formattedTxnDate = parseCSVDate(l.transaction_date);
+            const formattedExpiryDate = parseCSVDate(l.expiry_date);
+
             const query = `
                 INSERT INTO leads (
-                    transaction_id, transaction_date, company_name, contact_person, 
+                    transaction_id, transaction_date, expiry_date, company_name, contact_person, 
                     email, phone, state, city, insurance_type, existing_insurer, policy_value, transaction_type, 
                     deal_stage_id, lead_stage_id, status, remarks, created_by
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                VALUES ($1, NULLIF($2, '')::date, NULLIF($3, '')::date, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
                 ON CONFLICT (transaction_id) DO NOTHING;
             `;
             await pool.query(query, [
                 l.transaction_id || `TXN-${Date.now()}-${Math.floor(Math.random()*1000)}`,
-                l.transaction_date || new Date(),
-                l.company_name,
-                l.contact_person,
-                l.email,
-                l.phone,
+                formattedTxnDate || null,
+                formattedExpiryDate || null,
+                l.company_name || 'Corporate Client',
+                l.contact_person || 'Contact Person',
+                l.email || '',
+                l.phone || '9876543210',
                 l.state || null,
                 l.city || null,
                 l.insurance_type || 'Group Health Insurance',
@@ -469,7 +497,7 @@ export const bulkUploadLeads = async (req, res) => {
                 l.deal_stage_id || null,
                 l.lead_stage_id || null,
                 l.status || 'New',
-                l.remarks,
+                l.remarks || '',
                 'CSV Import'
             ]);
             insertedCount++;
@@ -478,7 +506,7 @@ export const bulkUploadLeads = async (req, res) => {
         return res.status(200).json({ success: true, message: `Successfully imported ${insertedCount} leads!` });
     } catch (err) {
         console.error('❌ Bulk upload error:', err);
-        return res.status(500).json({ success: false, error: 'Failed to process CSV import.' });
+        return res.status(500).json({ success: false, error: err.message || 'Failed to process CSV import.' });
     }
 };
 
@@ -511,6 +539,7 @@ export const getLeadById = async (req, res) => {
         const emailsRes = await pool.query('SELECT * FROM lead_emails WHERE lead_id = $1 ORDER BY id ASC;', [leadId]);
         const discussionsRes = await pool.query('SELECT * FROM lead_discussions WHERE lead_id = $1 ORDER BY id DESC;', [leadId]);
         const filesRes = await pool.query('SELECT * FROM lead_files WHERE lead_id = $1 ORDER BY id DESC;', [leadId]);
+        const callsRes = await pool.query('SELECT * FROM lead_calls WHERE lead_id = $1 ORDER BY id DESC;', [leadId]);
 
         const historyQuery = `
             SELECT h.*, 
@@ -532,6 +561,7 @@ export const getLeadById = async (req, res) => {
                 emails: emailsRes.rows,
                 discussions: discussionsRes.rows,
                 files: filesRes.rows,
+                calls: callsRes.rows,
                 assignment_history: historyRes.rows
             } 
         });

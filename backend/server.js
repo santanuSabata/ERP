@@ -33,12 +33,11 @@ import stocksRoutes from './routes/inventory/stocksRoutes.js';
 import customerRoutes from "./routes/sales/customerRoutes.js";
 import quotationRoutes from './routes/sales/quotationRoutes.js';
 import vendorRoutes from "./routes/purchase/vendorRoutes.js";
-import purchaseOrdersRoutes from "./routes/purchase/purchaseOrdersRoutes.js"; // 👈 1. Import Purchase Orders routes
+import purchaseOrdersRoutes from './routes/purchase/purchaseOrdersRoutes.js'; // 👈 1. Import Purchase Orders routes
 import purchasesRoutes from "./routes/purchase/purchasesRoutes.js";
 
 //CRM
 import crmSettingsRoutes from './routes/crm/crmSettingsRoutes.js';
-
 
 //HR
 import departmentRoutes from './routes/hr/departmentRoutes.js';
@@ -47,6 +46,7 @@ import employeeRoutes from './routes/hr/employeeRoutes.js';
 import employeeDashboardRoutes from './routes/hr/employeeDashboardRoutes.js';
 import attendanceRoutes from './routes/hr/attendanceRoutes.js';
 import attendanceSheetRoutes from './routes/hr/attendanceSheetRoutes.js';
+import employeeActivityRoutes from './routes/hr/employeeActivityRoutes.js'; // 👈 Import employee activity logs routes
 
 //Agents
 import agentRoutes from './routes/agent/agentRoutes.js';
@@ -91,7 +91,6 @@ app.use('/api/vendors', vendorRoutes);
 app.use('/api/purchase-orders', purchaseOrdersRoutes); // 👈 2. Mount Purchase Orders routes
 app.use('/api/purchases', purchasesRoutes);
 
-
 //Inventory
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/inventory', inventoryRoutes);
@@ -110,11 +109,12 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/employee-dashboard', employeeDashboardRoutes);
 app.use('/api/employee-attendance', attendanceRoutes);
 app.use('/api/attendance-sheets', attendanceSheetRoutes);
+app.use('/api/employee-activities', employeeActivityRoutes); // 👈 Mount employee activity logs API endpoint
 
 app.use('/api/quotations', quotationRoutes);
 
 //Agents
-app.use('/api/agent', agentRoutes );
+app.use('/api/agent', agentRoutes);
 
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
