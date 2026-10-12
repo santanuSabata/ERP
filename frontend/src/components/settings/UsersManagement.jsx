@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Search, Plus, ChevronLeft, ChevronRight, Edit3, Trash2, LayoutGrid, Table as TableIcon, Download, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Plus, ChevronLeft, ChevronRight, Edit3, Trash2, LayoutGrid, Table as TableIcon, Download, Shield, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/axios.js';
 import AddUserModal from '../../components/settings/AddUser.jsx';
@@ -32,7 +32,6 @@ const UsersManagement = () => {
     const fetchUsers = async (search, role, page, limit) => {
         try {
             setLoading(true);
-            // Updated to match standard /users endpoint
             const res = await api.get(`/users`, {
                 params: {
                     companyId: activeCompanyId,
@@ -68,7 +67,6 @@ const UsersManagement = () => {
     const handleDelete = async (id, name) => {
         if (!window.confirm(`Are you sure you want to delete user "${name}"?`)) return;
         try {
-            // Updated endpoint to match backend delete route
             await api.delete(`/users/${id}`);
             toast.success('User deleted successfully.');
             fetchUsers(searchQuery, roleFilter, currentPage, perPage);
@@ -146,27 +144,31 @@ const UsersManagement = () => {
                 <div className="bg-white p-16 rounded-3xl border border-slate-200 text-center text-xs text-slate-400">No users found.</div>
             ) : viewMode === 'table' ? (
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
-                    <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 px-6 py-3 text-[11px] font-bold text-slate-500 uppercase">
+                    <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-100 px-6 py-3 text-[11px] font-bold text-slate-500 uppercase items-center">
+                        <div className="col-span-1">ID</div>
                         <div className="col-span-3">Full Name</div>
                         <div className="col-span-2">Username</div>
-                        <div className="col-span-3">Department / Role</div>
-                        <div className="col-span-2">Status</div>
-                        <div className="col-span-2 text-right">Actions</div>
+                        <div className="col-span-2">Mobile</div>
+                        <div className="col-span-2">Department / Role</div>
+                        <div className="col-span-1">Status</div>
+                        <div className="col-span-1 text-right">Actions</div>
                     </div>
                     <div className="divide-y divide-slate-100 text-xs">
                         {users.map(u => {
                             const isActive = u.status === 1 || u.status === '1' || u.status === 'Active' || u.status === true;
                             return (
                                 <div key={u.id} className="grid grid-cols-12 items-center px-6 py-4 hover:bg-slate-50">
+                                    <div className="col-span-1 font-mono font-bold text-slate-500">#{u.id}</div>
                                     <div className="col-span-3 font-bold text-slate-900">{u.full_name || u.name} <span className="block text-[11px] font-normal text-slate-400">{u.email}</span></div>
                                     <div className="col-span-2 font-mono font-bold text-blue-600">{u.username}</div>
-                                    <div className="col-span-3 text-slate-600">{u.department_name || 'N/A'} <span className="block text-[11px] font-bold text-violet-600">{u.role}</span></div>
-                                    <div className="col-span-2">
+                                    <div className="col-span-2 font-mono text-slate-600">{u.mobile || 'N/A'}</div>
+                                    <div className="col-span-2 text-slate-600">{u.department_name || 'N/A'} <span className="block text-[11px] font-bold text-violet-600">{u.role}</span></div>
+                                    <div className="col-span-1">
                                         <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                                            {isActive ? 'Active' : 'Deactive'}
+                                            {isActive ? 'Active' : 'Inactive'}
                                         </span>
                                     </div>
-                                    <div className="col-span-2 text-right flex justify-end gap-2">
+                                    <div className="col-span-1 text-right flex justify-end gap-1.5">
                                         <button type="button" onClick={() => { setEditingUserId(u.id); setIsAddDrawerOpen(true); }} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg cursor-pointer" title="Edit User"><Edit3 size={14} /></button>
                                         <button type="button" onClick={() => handleDelete(u.id, u.full_name || u.name)} className="p-1.5 bg-slate-50 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer" title="Delete User"><Trash2 size={14} /></button>
                                     </div>
@@ -183,7 +185,8 @@ const UsersManagement = () => {
                             <div key={u.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <h3 className="text-xs font-bold text-slate-900">{u.full_name || u.name}</h3>
+                                        <span className="text-[10px] font-mono font-bold text-slate-400 block">ID: #{u.id}</span>
+                                        <h3 className="text-xs font-bold text-slate-900 mt-0.5">{u.full_name || u.name}</h3>
                                         <span className="text-[11px] font-mono font-bold text-blue-600">@{u.username}</span>
                                     </div>
                                     <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
@@ -192,6 +195,7 @@ const UsersManagement = () => {
                                 </div>
                                 <div className="text-xs text-slate-600 space-y-1">
                                     <p>Email: <strong>{u.email}</strong></p>
+                                    <p>Mobile: <strong className="font-mono">{u.mobile || 'N/A'}</strong></p>
                                     <p>Role: <strong className="text-violet-600">{u.role}</strong></p>
                                     <p>Dept: <strong>{u.department_name || 'N/A'}</strong></p>
                                 </div>

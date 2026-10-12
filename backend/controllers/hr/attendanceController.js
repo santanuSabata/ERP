@@ -120,6 +120,62 @@ export const createAttendanceLog = async (req, res) => {
     }
 };
 
+// 👈 Dedicated Clock-In / Clock-Out handler for Agent Portal
+export const clockAttendance = async (req, res) => {
+    try {
+        const { agent_id, user_id, action, companyId = 2 } = req.body;
+        const employeeId = agent_id || user_id;
+
+        if (!employeeId || !action) {
+            return res.status(400).json({ success: false, error: 'Employee ID and action (IN/OUT) are required.' });
+        }
+
+        const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const currentTime = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
+
+        if (action === 'IN') {
+            const query = `
+                INSERT INTO employee_attendance (company_id, employee_id, attendance_date, check_in_time, attendance_status, created_by)
+                VALUES ($1, $2, $3, $4, 'Present', 'Agent Portal')
+                ON CONFLICT (employee_id, attendance_date) 
+                DO UPDATE SET check_in_time = COALESCE(employee_attendance.check_in_time, EXCLUDED.check_in_time)
+                RETURNING *;
+            `;
+            const { rows } = await pool.query(query, [companyId, employeeId, currentDate, currentTime]);
+            return res.status(200).json({ success: true, message: 'Clocked in successfully!', data: rows[0] });
+        } 
+        
+        if (action === 'OUT') {
+            const query = `
+                UPDATE employee_attendance 
+                SET check_out_time = $1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE employee_id = $2 AND attendance_date = $3
+                RETURNING *;
+            `;
+            const { rows } = await pool.query(query, [currentTime, employeeId, currentDate]);
+            
+            if (rows.length === 0) {
+                // If no clock-in found for today, create one with clock out
+                const insertQuery = `
+                    INSERT INTO employee_attendance (company_id, employee_id, attendance_date, check_out_time, attendance_status, created_by)
+                    VALUES ($1, $2, $3, $4, 'Present', 'Agent Portal')
+                    RETURNING *;
+                `;
+                const insertRes = await pool.query(insertQuery, [companyId, employeeId, currentDate, currentTime]);
+                return res.status(200).json({ success: true, message: 'Clocked out recorded successfully!', data: insertRes.rows[0] });
+            }
+
+            return res.status(200).json({ success: true, message: 'Clocked out successfully!', data: rows[0] });
+        }
+
+        return res.status(400).json({ success: false, error: 'Invalid attendance action.' });
+    } catch (err) {
+        console.error('❌ Failed to record clock attendance:', err);
+        return res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+    }
+};
+
 export const updateAttendanceLog = async (req, res) => {
     try {
         const { id } = req.params;

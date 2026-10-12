@@ -48,7 +48,7 @@ const AgentDashboard = () => {
     const fetchAgentLeads = async () => {
         try {
             const currentAgent = agent || JSON.parse(localStorage.getItem('agentUser') || '{}');
-            const agentId = currentAgent.employeeId || currentAgent.id;
+            const agentId = currentAgent.id;
             if (!agentId) return;
 
             setLoading(true);
@@ -63,7 +63,7 @@ const AgentDashboard = () => {
                 setLeads(fetchedLeads);
                 setStats(fetchedStats);
 
-                // 👈 Auto-assign up to 10 unassigned leads if current assigned leads < 10
+                // Auto-assign up to 10 unassigned leads if current assigned leads < 10
                 if (fetchedLeads.length < 10) {
                     try {
                         const unassignedRes = await api.get('/leads', { params: { assignmentStatus: 'Unassigned', limit: 10 - fetchedLeads.length } });
@@ -75,7 +75,6 @@ const AgentDashboard = () => {
                             );
                             await Promise.all(assignPromises);
                             
-                            // Re-fetch leads after auto-assignment
                             const refetchRes = await api.get('/agent/leads', { params: { agentId, status: statusFilter, search: searchQuery } });
                             if (refetchRes.data?.success) {
                                 setLeads(refetchRes.data.leads || []);
@@ -101,6 +100,35 @@ const AgentDashboard = () => {
             fetchAgentLeads();
         }
     }, [statusFilter, searchQuery, agent]);
+
+    // 👈 Handle Clock In & Clock Out API Call to insert/update employee_attendance
+    const handleAttendanceAction = async (actionType) => {
+        try {
+            const agentId = agent?.id;
+            if (!agentId) return;
+
+            const res = await api.post('/attendance/clock', {
+                agent_id: agentId,
+                user_id: agentId,
+                action: actionType // 'IN' or 'OUT'
+            });
+
+            if (res.status === 200 || res.data?.success) {
+                if (actionType === 'IN') {
+                    setIsClockedIn(true);
+                    toast.success('Clocked In successfully and recorded in attendance!');
+                } else {
+                    setIsClockedIn(false);
+                    toast.success('Clocked Out successfully and recorded!');
+                }
+            } else {
+                toast.error(res.data?.error || 'Failed to record attendance.');
+            }
+        } catch (err) {
+            console.error('Attendance error:', err);
+            toast.error(err.response?.data?.error || 'Failed to communicate with attendance server.');
+        }
+    };
 
     const handleUpdateStatusSubmit = async (e) => {
         e.preventDefault();
@@ -147,7 +175,10 @@ const AgentDashboard = () => {
                 <div className="flex items-center gap-6 w-full lg:w-auto justify-between lg:justify-start">
                     <div>
                         <h1 className="text-sm font-extrabold text-slate-900">Agent Insurance Portal</h1>
-                        <p className="text-[11px] text-slate-400">Welcome back, {agent.name || 'Agent'}</p>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                            Welcome back, <strong className="text-slate-900">{agent.name || agent.full_name || 'Agent'}</strong>{' '}
+                            <span className="text-violet-600 font-mono font-bold">(ID: #{agent.id})</span>
+                        </p>
                     </div>
 
                     {/* Navigation Menu Tabs */}
@@ -239,10 +270,7 @@ const AgentDashboard = () => {
                                 <div className="flex items-center gap-3">
                                     <button 
                                         type="button"
-                                        onClick={() => {
-                                            setIsClockedIn(true);
-                                            toast.success('Clocked In successfully!');
-                                        }}
+                                        onClick={() => handleAttendanceAction('IN')}
                                         disabled={isClockedIn}
                                         className={`px-6 py-2.5 rounded-xl text-xs font-bold tracking-wider transition shadow-sm cursor-pointer ${
                                             isClockedIn 
@@ -254,10 +282,7 @@ const AgentDashboard = () => {
                                     </button>
                                     <button 
                                         type="button"
-                                        onClick={() => {
-                                            setIsClockedIn(false);
-                                            toast.success('Clocked Out successfully!');
-                                        }}
+                                        onClick={() => handleAttendanceAction('OUT')}
                                         disabled={!isClockedIn}
                                         className={`px-6 py-2.5 rounded-xl text-xs font-bold tracking-wider transition shadow-sm cursor-pointer ${
                                             !isClockedIn 
@@ -473,17 +498,17 @@ const AgentDashboard = () => {
                 <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-2xs max-w-xl mx-auto space-y-6">
                     <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
                         <div className="w-16 h-16 bg-violet-100 text-violet-600 rounded-2xl flex items-center justify-center text-xl font-bold">
-                            {agent.name ? agent.name.charAt(0).toUpperCase() : 'A'}
+                            {(agent.name || agent.full_name || 'A').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                            <h2 className="text-base font-bold text-slate-900">{agent.name}</h2>
+                            <h2 className="text-base font-bold text-slate-900">{agent.name || agent.full_name}</h2>
                             <span className="text-xs text-violet-600 font-semibold">{agent.role || 'Agent'}</span>
                         </div>
                     </div>
                     <div className="space-y-4 text-xs text-slate-600">
                         <div className="flex justify-between py-2 border-b border-slate-50">
-                            <span className="text-slate-400">Agent ID / Employee ID</span>
-                            <span className="font-mono font-bold text-slate-900">{agent.employeeId || agent.id}</span>
+                            <span className="text-slate-400">Agent ID</span>
+                            <span className="font-mono font-bold text-slate-900">{agent.id}</span>
                         </div>
                         <div className="flex justify-between py-2 border-b border-slate-50">
                             <span className="text-slate-400">Mobile Number</span>

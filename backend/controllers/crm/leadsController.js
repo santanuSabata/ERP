@@ -461,23 +461,32 @@ const parseCSVDate = (dateStr) => {
 // Bulk Upload Leads via CSV data payload
 export const bulkUploadLeads = async (req, res) => {
     try {
-        const { leads } = req.body; 
+        const { leads, companyId } = req.body; 
         if (!Array.isArray(leads) || leads.length === 0) {
             return res.status(400).json({ success: false, error: 'No valid leads provided for upload.' });
         }
+
+        // 👈 Fallback or extract selected company ID from request body, headers, or query
+        const selectedCompanyId = companyId || req.headers['x-company-id'] || 2;
 
         let insertedCount = 0;
         for (const l of leads) {
             const formattedTxnDate = parseCSVDate(l.transaction_date);
             const formattedExpiryDate = parseCSVDate(l.expiry_date);
+            
+            // Extract agent_id safely
+            const agentId = l.agent_id !== undefined && l.agent_id !== null ? l.agent_id : (l.agentId !== undefined && l.agentId !== null ? l.agentId : null);
+
+            // Extract company_id if provided per lead in CSV/payload, otherwise use selectedCompanyId
+            const leadCompanyId = l.company_id || l.companyId || selectedCompanyId;
 
             const query = `
                 INSERT INTO leads (
                     transaction_id, transaction_date, expiry_date, company_name, contact_person, 
                     email, phone, state, city, insurance_type, existing_insurer, policy_value, transaction_type, 
-                    deal_stage_id, lead_stage_id, status, remarks, created_by
+                    deal_stage_id, lead_stage_id, status, remarks, created_by, agent_id, company_id
                 )
-                VALUES ($1, NULLIF($2, '')::date, NULLIF($3, '')::date, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                VALUES ($1, NULLIF($2, '')::date, NULLIF($3, '')::date, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
                 ON CONFLICT (transaction_id) DO NOTHING;
             `;
             await pool.query(query, [
@@ -498,12 +507,14 @@ export const bulkUploadLeads = async (req, res) => {
                 l.lead_stage_id || null,
                 l.status || 'New',
                 l.remarks || '',
-                'CSV Import'
+                'CSV Import',
+                agentId || null,
+                leadCompanyId // 👈 Inserted successfully as $20
             ]);
             insertedCount++;
         }
 
-        return res.status(200).json({ success: true, message: `Successfully imported ${insertedCount} leads!` });
+        return res.status(200).json({ success: true, message: `Successfully imported ${insertedCount} leads for company ID ${selectedCompanyId}!` });
     } catch (err) {
         console.error('❌ Bulk upload error:', err);
         return res.status(500).json({ success: false, error: err.message || 'Failed to process CSV import.' });

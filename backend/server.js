@@ -11,7 +11,7 @@ import path from "path"; // 👈 Import path module for directory resolution
 import authRoutes from "./routes/authRoutes.js";
 import dashboardRoutes from './routes/dashboardRoute.js';
 import insightRoutes from './routes/insightRoutes.js';
-
+ 
 //Settings
 import companyRoutes from "./routes/settings/companyRoutes.js";
 import preferencesRoutes from "./routes/settings/preferencesRoutes.js";

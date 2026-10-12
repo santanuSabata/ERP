@@ -15,7 +15,7 @@ const Leads = () => {
     const [statusFilter, setStatusFilter] = useState('All');
     const [insuranceFilter, setInsuranceFilter] = useState('All');
     const [agentFilter, setAgentFilter] = useState('All');
-    const [assignmentFilter, setAssignmentFilter] = useState('All'); // 👈 Assigned vs Unassigned filter state
+    const [assignmentFilter, setAssignmentFilter] = useState('All');
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
     const [page, setPage] = useState(1);
@@ -37,7 +37,7 @@ const Leads = () => {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [currentLeadId, setCurrentLeadId] = useState(null);
-    const [employees, setEmployees] = useState([]);
+    const [systemUsers, setSystemUsers] = useState([]); // 👈 Users table state
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -61,7 +61,7 @@ const Leads = () => {
                     status: statusFilter, 
                     insuranceType: insuranceFilter, 
                     agentId: agentFilter === 'All' ? undefined : agentFilter,
-                    assignmentStatus: assignmentFilter, // 👈 Send assignment status filter to backend
+                    assignmentStatus: assignmentFilter,
                     fromDate: fromDate || undefined, 
                     toDate: toDate || undefined, 
                     page, 
@@ -82,45 +82,42 @@ const Leads = () => {
         }
     };
 
-    const fetchEmployees = async () => {
+    // 👈 Fetch agents directly from the /users table
+    const fetchSystemUsers = async () => {
         try {
-            const res = await api.get('/employees').catch(async () => {
-                try {
-                    return await api.get('/hr/employees');
-                } catch {
-                    return await api.get('/users');
-                }
-            });
+            const activeCompanyId = localStorage.getItem('activeCompanyId') || 2;
+            const res = await api.get('/users', { params: { companyId: activeCompanyId, limit: 1000 } });
+            
+            const userData = res.data?.data || res.data?.users || res.data || [];
+            const list = Array.isArray(userData) ? userData : [];
+            setSystemUsers(list);
 
-            const empData = res.data?.employees || res.data?.users || res.data?.data || res.data || [];
-            const list = Array.isArray(empData) ? empData : [];
-            setEmployees(list);
-
-            const agents = list.filter(emp => {
-                const roleName = emp.role || emp.designation || emp.role_name || '';
+            // Filter users belonging to the 'Agent' role
+            const agents = list.filter(u => {
+                const roleName = u.role || u.role_name || '';
                 return roleName.toLowerCase() === 'agent';
             });
             setAgentUsers(agents);
         } catch (e) {
-            console.warn('⚠️ Employees endpoint returned an error. Defaulting to empty list.');
-            setEmployees([]);
+            console.warn('⚠️ Users endpoint returned an error. Defaulting to empty list.');
+            setSystemUsers([]);
             setAgentUsers([]);
         }
     };
 
     useEffect(() => {
         fetchLeads();
-        fetchEmployees();
+        fetchSystemUsers();
     }, [search, statusFilter, insuranceFilter, agentFilter, assignmentFilter, fromDate, toDate, page, limit]);
 
-    // Computed Assigned & Not Assigned Counts based on current loaded list
     const assignedCount = leads.filter(l => l.agent_id !== null && l.agent_id !== undefined && l.agent_id !== '').length;
     const notAssignedCount = leads.filter(l => l.agent_id === null || l.agent_id === undefined || l.agent_id === '').length;
 
+    // 👈 Get Agent Name from users table
     const getAgentName = (agentId) => {
         if (!agentId) return 'Unassigned';
-        const emp = employees.find(e => e.id === agentId);
-        return emp ? (emp.name || emp.full_name) : 'Assigned Agent';
+        const user = systemUsers.find(u => Number(u.id) === Number(agentId));
+        return user ? (user.full_name || user.name || user.username) : `Agent #${agentId}`;
     };
 
     const handleDeleteLead = async (id) => {
@@ -131,6 +128,26 @@ const Leads = () => {
             fetchLeads();
         } catch (err) {
             toast.error('Failed to delete lead.');
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (selectedLeadIds.length === 0) {
+            toast.error('No leads selected for deletion.');
+            return;
+        }
+        if (!window.confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected leads?`)) return;
+
+        try {
+            const deletePromises = selectedLeadIds.map(id => api.delete(`/leads/${id}`));
+            await Promise.all(deletePromises);
+
+            toast.success(`Successfully deleted ${selectedLeadIds.length} leads!`);
+            setSelectedLeadIds([]);
+            fetchLeads();
+        } catch (err) {
+            console.error('❌ Bulk delete error:', err);
+            toast.error('Failed to delete selected leads.');
         }
     };
 
@@ -265,9 +282,9 @@ const Leads = () => {
     };
 
     return (
-        <div className="w-full px-4 sm:px-6 lg:px-8 space-y-6 pb-20 font-sans text-slate-900">
+        <div className="w-full px-6 py-4 space-y-6 pb-25 font-sans text-slate-900 bg-slate-50/50 min-h-screen">
             {/* Header Title & Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs mt-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs">
                 <div>
                     <h1 className="text-lg font-black text-slate-900 tracking-tight">Corporate Insurance Leads</h1>
                     <p className="text-xs text-slate-400">Manage corporate insurance transactions, policy allocations, and agent assignments.</p>
@@ -342,8 +359,8 @@ const Leads = () => {
             </div>
 
             {/* Search, Filters, Date Range Filter & View Toggle */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-                <div className="relative flex-1 w-full max-w-sm">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                <div className="relative flex-1 w-full lg:max-w-sm">
                     <Search size={15} className="absolute left-3.5 top-3 text-slate-400" />
                     <input 
                         type="text" placeholder="Search by company, contact, phone, txn ID..." 
@@ -352,7 +369,7 @@ const Leads = () => {
                     />
                 </div>
                 
-                <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+                <div className="flex items-center gap-3 w-full lg:w-auto flex-wrap">
                     {/* From Date & To Date Range Inputs */}
                     <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
                         <Calendar size={13} className="text-slate-400" />
@@ -375,7 +392,6 @@ const Leads = () => {
                         )}
                     </div>
 
-                    {/* 👈 Assignment Status Filter (Assigned / Unassigned) */}
                     <select 
                         value={assignmentFilter} 
                         onChange={(e) => { setAssignmentFilter(e.target.value); setPage(1); }}
@@ -386,7 +402,6 @@ const Leads = () => {
                         <option value="Unassigned">Not Assigned Leads</option>
                     </select>
 
-                    {/* Agent-wise Filter Dropdown */}
                     <select 
                         value={agentFilter} 
                         onChange={(e) => { setAgentFilter(e.target.value); setPage(1); }}
@@ -395,7 +410,7 @@ const Leads = () => {
                         <option value="All">All Agents</option>
                         {agentUsers.map(agent => (
                             <option key={agent.id} value={agent.id}>
-                                {agent.name || agent.full_name}
+                                {agent.full_name || agent.name || agent.username}
                             </option>
                         ))}
                     </select>
@@ -435,14 +450,13 @@ const Leads = () => {
                 </div>
             </div>
 
-            {/* Total Leads Count, Rows Per Page Selector & Bulk Assignment Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs">
+            {/* Total Leads Count, Rows Per Page Selector & Bulk Actions Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-slate-200 text-xs shadow-2xs">
                 <div className="flex items-center gap-3 pl-2">
                     <span className="font-bold text-slate-600">
                         Total Leads Found: <strong className="text-slate-900 font-mono">{totalLeads}</strong> | Selected: <strong className="text-blue-600 font-mono">{selectedLeadIds.length}</strong>
                     </span>
 
-                    {/* Rows Per Page Selector (20, 50, 100, All) */}
                     <div className="flex items-center gap-1.5 pl-4 border-l border-slate-300">
                         <span className="text-slate-500 font-semibold">Rows:</span>
                         <select 
@@ -458,18 +472,18 @@ const Leads = () => {
                     </div>
                 </div>
 
-                {/* Bulk Agent Assignment Widget */}
+                {/* Bulk Actions Widget (Assign & Delete Selected) */}
                 {selectedLeadIds.length > 0 && (
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
                         <select 
                             value={bulkAgentId} 
                             onChange={(e) => setBulkAgentId(e.target.value)}
                             className="p-2 bg-white border border-slate-300 rounded-xl font-semibold cursor-pointer text-xs"
                         >
-                            <option value="">-- Assign to Agent (Role: Agent) --</option>
+                            <option value="">-- Assign to Agent --</option>
                             {agentUsers.map(agent => (
                                 <option key={agent.id} value={agent.id}>
-                                    {agent.name || agent.full_name} ({agent.email || 'Agent'})
+                                    {agent.full_name || agent.name || agent.username}
                                 </option>
                             ))}
                         </select>
@@ -478,6 +492,12 @@ const Leads = () => {
                             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                             <UserCheck size={14} /> Assign Selected
+                        </button>
+                        <button 
+                            onClick={handleBulkDelete}
+                            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                            <Trash2 size={14} /> Delete Selected
                         </button>
                     </div>
                 )}
@@ -546,7 +566,6 @@ const Leads = () => {
                     </div>
                 </div>
             ) : (
-                /* Card View */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {leads.map(lead => (
                         <div key={lead.id} className={`bg-white p-6 rounded-3xl border shadow-2xs space-y-4 transition ${selectedLeadIds.includes(lead.id) ? 'border-blue-500 bg-blue-50/20' : 'border-slate-200 hover:border-blue-300'}`}>
@@ -581,7 +600,6 @@ const Leads = () => {
                 </div>
             )}
 
-            {/* Pagination Controls (Hidden when limit is 'All') */}
             {limit !== 'All' && totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2 pt-4">
                     <button 
@@ -612,7 +630,6 @@ const Leads = () => {
                 </div>
             )}
 
-            {/* Slide-over Drawer Component (Add/Edit) */}
             {isDrawerOpen && (
                 <AddLead 
                     leadId={currentLeadId} 
@@ -621,7 +638,6 @@ const Leads = () => {
                 />
             )}
 
-            {/* View Lead Modal */}
             {isViewModalOpen && currentLeadId && (
                 <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-2xs flex justify-end">
                     <div className="w-screen md:w-[65vw] min-w-[700px] bg-white shadow-2xl min-h-screen flex flex-col relative animate-in slide-in-from-right duration-300">
@@ -638,7 +654,6 @@ const Leads = () => {
                 </div>
             )}
 
-            {/* CSV Upload Modal */}
             {isUploadModalOpen && (
                 <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-2xs flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl space-y-4">

@@ -3,7 +3,8 @@ import {
     getAttendanceLogs, 
     getAttendanceLogById, 
     createAttendanceLog, 
-    updateAttendanceLog, 
+    updateAttendanceLog,
+    clockAttendance, 
     deleteAttendanceLog 
 } from '../../controllers/hr/attendanceController.js';
 
@@ -14,5 +15,6 @@ router.get('/:id', getAttendanceLogById);
 router.post('/', createAttendanceLog);
 router.put('/:id', updateAttendanceLog);
 router.delete('/:id', deleteAttendanceLog);
+router.post('/clock', clockAttendance);
 
 export default router;
