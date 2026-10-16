@@ -52,6 +52,9 @@ import employeeActivityRoutes from './routes/hr/employeeActivityRoutes.js'; // ð
 import agentRoutes from './routes/agent/agentRoutes.js';
 import leadsRoutes from './routes/crm/leadsRoutes.js';
 
+import rmRoutes from './routes/rm/rmRoutes.js';
+
+
 dotenv.config();
 
 const app = express();
@@ -101,6 +104,8 @@ app.use('/api/categories', categoriesRoutes);
 //crm
 app.use('/api/leads', leadsRoutes);
 app.use('/api/crm-settings', crmSettingsRoutes);
+app.use('/api/crm/lead-stages', leadsRoutes);
+app.use('/api/lead-stages', leadsRoutes);
 
 //HR
 app.use('/api/departments', departmentRoutes);
@@ -115,6 +120,9 @@ app.use('/api/quotations', quotationRoutes);
 
 //Agents
 app.use('/api/agent', agentRoutes);
+
+//Rm
+app.use('/api/rm', rmRoutes);
 
 app.listen(PORT, () => {
     console.log(`ðŸš€ Server running on port ${PORT}`);

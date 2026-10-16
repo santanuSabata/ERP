@@ -3,7 +3,7 @@ import { Search, Users, PhoneCall, CheckCircle, Clock, LogOut, RefreshCw, Layout
 import toast from 'react-hot-toast';
 import api from '../../lib/axios.js';
 import { useNavigate } from 'react-router-dom';
-import LeadView from '../../components/crm/ViewLead.jsx';
+import LeadView from '../../components/crm/ViewLeadRm.jsx';
 
 const AgentDashboard = () => {
     const navigate = useNavigate();

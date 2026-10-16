@@ -420,7 +420,7 @@ const AddLead = ({ leadId, onClose, onSuccess }) => {
                                             <option key={stage.id} value={stage.id}>{stage.name}</option>
                                         ))}
                                     </select>
-                                </div>
+                                </div> 
                             </div>
 
                             {/* Row 6: Expiry Date, Allocate to Agent */}

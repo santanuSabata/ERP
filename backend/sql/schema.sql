@@ -705,6 +705,9 @@ CREATE TABLE IF NOT EXISTS lead_calls (
     subject VARCHAR(255) NOT NULL,
     call_type VARCHAR(50) DEFAULT 'Outbound',
     duration VARCHAR(50) DEFAULT '00:00',
+    audio_url TEXT,
+    callback_date DATE,
+    callback_time TIME,
     user_name VARCHAR(100) DEFAULT 'Admin',
     remarks TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

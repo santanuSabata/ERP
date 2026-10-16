@@ -5,8 +5,6 @@ import toast from 'react-hot-toast';
 import api from '../../lib/axios.js';
 
 const companyId = localStorage.getItem('activeCompanyId') || 2;
-
-
 const UploadLeadsPreview = () => {
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
@@ -50,7 +48,7 @@ const UploadLeadsPreview = () => {
     }, []);
 
     const downloadSampleCSV = () => {
-        const sampleContent = "Transaction ID,Date,Expiry Date,Company Name,Contact Person,Email,Phone,Insurance Type,Policy Value,Type,Status,Remarks,Agent Name\nTXN-1001,12/11/26,12/11/27,Apex Logistics,Rajesh Sharma,rajesh@apexlogistics.com,9898815579,Group Health,450000,Fresh,New,Sample corporate lead remarks,Chhavi";
+        const sampleContent = "Lead ID,Date,Expiry Date,Company Name,Contact Person,Email,Phone,Insurance Type,Policy Value,Type,Status,Remarks,agent_id,LType\n,12/11/26,12/11/27,Apex Logistics,Rajesh Sharma,rajesh@apexlogistics.com,9898815579,Group Health,450000,Fresh,New,Sample corporate lead remarks,2,EV";
         const encodedUri = encodeURI("data:text/csv;charset=utf-8," + sampleContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -75,11 +73,17 @@ const UploadLeadsPreview = () => {
             const lines = text.split('\n');
             const parsedLeads = [];
 
+            // Generate Month & Year dynamically for format (EV-Month-Year-slno)
+            const now = new Date();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const month = monthNames[now.getMonth()];
+            const year = now.getFullYear();
+
             for (let i = 1; i < lines.length; i++) {
                 if (!lines[i].trim()) continue;
                 const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
                 
-                const csvAgentName = values[12] || ''; // 13th column is Agent Name
+                const csvAgentName = values[12] || ''; 
                 let matchedAgentId = null;
 
                 if (csvAgentName && agentUsers.length > 0) {
@@ -88,12 +92,16 @@ const UploadLeadsPreview = () => {
                         (a.username || '').toLowerCase() === csvAgentName.toLowerCase()
                     );
                     if (foundAgent) {
-                        matchedAgentId = foundAgent.id;
+                        matchedAgentId = foundAgent.id; 
                     }
                 }
 
+                const slno = String(i).padStart(2, '0'); // Pads index to 2 digits (e.g., 01, 02)
+                const prefixType = values[13] && values[13] !== 'NaN' ? values[13] : 'EV'; // 👈 Fixed column index to 13
+                const fallbackTxnId = `${prefixType}-${month}-${year}-${slno}`; // Formats as EV-Month-year-slno
+
                 parsedLeads.push({
-                    transaction_id: values[0] && values[0] !== 'NaN' ? values[0] : `TXN-${Date.now()}-${i}`,
+                    transaction_id: values[0] && values[0].trim() !== '' && values[0] !== 'NaN' ? values[0].trim() : fallbackTxnId,
                     transaction_date: values[1] && values[1] !== 'NaN' ? values[1] : '',
                     expiry_date: values[2] && values[2] !== 'NaN' ? values[2] : '',
                     company_name: values[3] && values[3] !== 'NaN' ? values[3] : 'Corporate Client',
@@ -185,7 +193,7 @@ const UploadLeadsPreview = () => {
                             </div>
                             <div>
                                 <h3 className="text-sm font-bold text-slate-800">Select or Drag & Drop your CSV file</h3>
-                                <p className="text-xs text-slate-400 mt-1">Automatically maps Agent Names (e.g., Chhavi, Naveen, Jyoti) to user accounts</p>
+                                <p className="text-xs text-slate-400 mt-1">Automatically maps Agent Names to user accounts</p>
                             </div>
 
                             <label className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer">

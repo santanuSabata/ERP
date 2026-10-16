@@ -6,6 +6,7 @@ import {
     updateLead, 
     deleteLead, 
     bulkUploadLeads,
+    getLeadStages,
     getLeadMetricsSummary 
 } from '../../controllers/crm/leadsController.js';
 
@@ -18,5 +19,7 @@ router.put('/:id', updateLead);
 router.delete('/:id', deleteLead);
 router.post('/bulk-upload', bulkUploadLeads);
 router.get('/metrics/summary', getLeadMetricsSummary);
+router.get('/lead-stages', getLeadStages);
+
 
 export default router;

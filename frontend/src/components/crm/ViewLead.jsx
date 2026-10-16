@@ -3,24 +3,27 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
     Building2, User, Mail, Phone, Calendar, ArrowLeft, 
     FileText, Plus, Trash2, Download, Upload, Clock, CheckCircle, Shield, Save, 
-    Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, Link as LinkIcon, Image as ImageIcon, MapPin, RefreshCw, DollarSign, Layers, ArrowRight, X, MessageSquare
+    Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, Link as LinkIcon, Image as ImageIcon, MapPin, RefreshCw, DollarSign, Layers, ArrowRight, X, MessageSquare, Mic
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/axios.js';
 
 const LeadView = ({ leadId, id: propId }) => {
     const { id: paramId } = useParams();
-    // Resolves ID from prop (leadId or id) or URL route parameters
     const activeId = leadId || propId || paramId;
-    
+     
     const navigate = useNavigate();
     const [lead, setLead] = useState(null);
     const [employees, setEmployees] = useState([]);
+    const [leadStages, setLeadStages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedAgent, setSelectedAgent] = useState('');
     const [noteContent, setNoteContent] = useState('');
     const [savingNote, setSavingNote] = useState(false);
     const [uploadingFiles, setUploadingFiles] = useState(false);
+
+    // Form Data state for Lead Stage updates
+    const [formData, setFormData] = useState({ lead_stage_id: '' });
 
     // Call Timer States
     const [isCalling, setIsCalling] = useState(false);
@@ -40,7 +43,17 @@ const LeadView = ({ leadId, id: propId }) => {
     const [newPhone, setNewPhone] = useState({ label: 'Work', number: '', name: '', description: '' });
     const [newEmail, setNewEmail] = useState({ label: 'Work', address: '', name: '', description: '' });
     const [newDiscussion, setNewDiscussion] = useState({ subject: '', text: '' });
-    const [newCall, setNewCall] = useState({ subject: '', callType: 'Outbound', duration: '00:00', userName: 'Admin', remarks: '' });
+    
+    const [newCall, setNewCall] = useState({ 
+        subject: '', 
+        callType: 'Outbound', 
+        duration: '00:00', 
+        userName: 'Admin', 
+        remarks: '', 
+        audioFile: null,
+        callbackDate: '',
+        callbackTime: ''
+    });
     const [submittingContact, setSubmittingContact] = useState(false);
 
     // Call Timer Effect
@@ -88,6 +101,7 @@ const LeadView = ({ leadId, id: propId }) => {
                 setLead(leadData);
                 setSelectedAgent(leadData?.agent_id ? String(leadData.agent_id) : '');
                 setNoteContent(leadData?.remarks || '');
+                setFormData({ lead_stage_id: leadData?.lead_stage_id ? String(leadData.lead_stage_id) : '' });
             } else {
                 setLead(null);
                 toast.error('Could not fetch lead details.');
@@ -100,6 +114,19 @@ const LeadView = ({ leadId, id: propId }) => {
             setLoading(false);
         }
     };
+
+    // Fetch Lead Stages Metadata
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const leadStagesRes = await api.get('/crm-settings/meta/lead-stages').catch(() => api.get('/lead-stages'));
+                setLeadStages(leadStagesRes.data?.data || leadStagesRes.data?.stages || leadStagesRes.data || []);
+            } catch (e) {
+                console.warn('Lead stages fetch skipped/failed', e);
+            }
+        };
+        fetchInitialData();
+    }, []);
 
     useEffect(() => {
         const fetchEmployees = async () => {
@@ -132,6 +159,19 @@ const LeadView = ({ leadId, id: propId }) => {
         } catch (err) {
             console.error('Reassign error:', err);
             toast.error('Failed to reassign agent.');
+        }
+    };
+
+    // Handle Lead Stage Change
+    const handleLeadStageChange = async (newStageId) => {
+        setFormData({ lead_stage_id: newStageId });
+        try {
+            await api.put(`/leads/${activeId}`, { leadStageId: newStageId ? parseInt(newStageId, 10) : null });
+            toast.success('Lead stage updated successfully!');
+            fetchLeadDetails();
+        } catch (err) {
+            console.error('Failed to update lead stage:', err);
+            toast.error('Failed to update lead stage.');
         }
     };
 
@@ -207,10 +247,23 @@ const LeadView = ({ leadId, id: propId }) => {
         if (!newCall.subject.trim()) return;
         try {
             setSubmittingContact(true);
-            const updatedCalls = [...(lead.calls || []), { subject: newCall.subject, call_type: newCall.callType, duration: newCall.duration, user_name: newCall.userName, remarks: newCall.remarks }];
+
+            let audioUrl = newCall.audioFile ? URL.createObjectURL(newCall.audioFile) : null;
+
+            const updatedCalls = [...(lead.calls || []), { 
+                subject: newCall.subject, 
+                call_type: newCall.callType, 
+                duration: newCall.duration, 
+                user_name: newCall.userName, 
+                remarks: newCall.remarks,
+                audio_url: audioUrl,
+                callback_date: newCall.callbackDate || null,
+                callback_time: newCall.callbackTime || null
+            }];
+
             await api.put(`/leads/${activeId}`, { calls: updatedCalls });
-            toast.success('Call log added successfully!');
-            setNewCall({ subject: '', callType: 'Outbound', duration: '00:00', userName: 'Admin', remarks: '' });
+            toast.success('Call log with recording & callback scheduled successfully!');
+            setNewCall({ subject: '', callType: 'Outbound', duration: '00:00', userName: 'Admin', remarks: '', audioFile: null, callbackDate: '', callbackTime: '' });
             setShowCallModal(false);
             fetchLeadDetails();
         } catch (err) {
@@ -234,7 +287,7 @@ const LeadView = ({ leadId, id: propId }) => {
 
             const updatedFiles = [...(lead.files || []), ...newFiles];
             await api.put(`/leads/${activeId}`, { files: updatedFiles.map(f => ({ name: f.file_name || f.name, url: f.file_url || f.url, type: f.file_type || f.type })) });
-            
+             
             toast.success('Files uploaded successfully!');
             fetchLeadDetails();
         } catch (err) {
@@ -310,7 +363,7 @@ const LeadView = ({ leadId, id: propId }) => {
 
     return (
         <div className="p-4 sm:p-6 w-full space-y-6 font-sans text-slate-900">
-            
+             
             {/* Breadcrumb & Top Header Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-2xl shadow-md">
                 <div className="flex items-center gap-3">
@@ -451,7 +504,7 @@ const LeadView = ({ leadId, id: propId }) => {
                                         const prevName = hist.prev_agent_name || 'Unassigned';
                                         const newName = hist.new_agent_name || '-';
                                         const dateStr = new Date(hist.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                                        
+                                         
                                         return (
                                             <div key={idx} className="space-y-0.5 pb-2.5 border-b border-slate-50 last:border-none">
                                                 <div className="flex items-center gap-2 font-medium text-xs flex-wrap">
@@ -492,11 +545,11 @@ const LeadView = ({ leadId, id: propId }) => {
                             </div>
                         </div>
                     </div>
-                    
+                     
                     {/* Lead Activity & Call Controls */}
                     <div className="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 space-y-4">
                         <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Lead Progress</h3>
-                        
+                         
                         {/* Break Status Widget with Live Timer & Close Toggle */}
                         <div className="space-y-3 pt-1">
                             <div className="flex items-center justify-between">
@@ -541,8 +594,7 @@ const LeadView = ({ leadId, id: propId }) => {
                                             }
                                             setIsOnBreak(true);
                                             toast.success('Break started');
-                                            
-                                            // Optionally log activity to database
+                                             
                                             try {
                                                 const storedAgent = JSON.parse(localStorage.getItem('agentUser') || '{}');
                                                 if (storedAgent.id || storedAgent.employeeId) {
@@ -618,6 +670,21 @@ const LeadView = ({ leadId, id: propId }) => {
                                         End Call
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* 👈 Change Lead Stage Dropdown Added Below Call Controls */}
+                            <div className="space-y-1 pt-2">
+                                <label className="text-xs font-bold text-slate-700">Lead Stage</label>
+                                <select 
+                                    value={formData.lead_stage_id} 
+                                    onChange={(e) => handleLeadStageChange(e.target.value)} 
+                                    className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-white font-semibold cursor-pointer"
+                                >
+                                    <option value="">-- Select Lead Stage --</option>
+                                    {leadStages.map(stage => (
+                                        <option key={stage.id} value={stage.id}>{stage.name}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -859,6 +926,8 @@ const LeadView = ({ leadId, id: propId }) => {
                                 <th className="pb-2">Subject</th>
                                 <th className="pb-2">Call Type</th>
                                 <th className="pb-2">Duration</th>
+                                <th className="pb-2">Callback</th>
+                                <th className="pb-2">Recording</th>
                                 <th className="pb-2">Remarks</th>
                                 <th className="pb-2">User</th>
                                 <th className="pb-2 text-right">Action</th>
@@ -873,6 +942,19 @@ const LeadView = ({ leadId, id: propId }) => {
                                             <span className="px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded font-semibold text-[10px]">{c.call_type}</span>
                                         </td>
                                         <td className="py-2.5 font-mono text-slate-600">{c.duration}</td>
+                                        <td className="py-2.5 font-mono text-violet-600 font-bold">
+                                            {c.callback_date ? `${c.callback_date} ${c.callback_time || ''}` : '-'}
+                                        </td>
+                                        <td className="py-2.5">
+                                            {c.audio_url ? (
+                                                <audio controls className="h-8 w-36 sm:w-48">
+                                                    <source src={c.audio_url} type="audio/mpeg" />
+                                                    Your browser does not support the audio element.
+                                                </audio>
+                                            ) : (
+                                                <span className="text-slate-400 italic">No audio</span>
+                                            )}
+                                        </td>
                                         <td className="py-2.5 text-slate-600 max-w-xs truncate" title={c.remarks}>{c.remarks || '-'}</td>
                                         <td className="py-2.5 text-slate-600">{c.user_name || 'Admin'}</td>
                                         <td className="py-2.5 text-right">
@@ -888,7 +970,7 @@ const LeadView = ({ leadId, id: propId }) => {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="py-6 text-center text-slate-400 text-xs">No Calls Available!</td>
+                                    <td colSpan="8" className="py-6 text-center text-slate-400 text-xs">No Calls Available!</td>
                                 </tr>
                             )}
                         </tbody>
@@ -971,7 +1053,7 @@ const LeadView = ({ leadId, id: propId }) => {
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-700">Email Address</label>
-                                    <input type="email" required value={newEmail.address} onChange={(e) => setNewEmail({ ...newEmail, address: e.target.value })} placeholder="rajesh@apex.com" className="w-full p-2.5 rounded-xl border border-slate-200 text-xs" />
+                                    <input type="email" value={newEmail.address} onChange={(e) => setNewEmail({ ...newEmail, address: e.target.value })} placeholder="rajesh@apex.com" className="w-full p-2.5 rounded-xl border border-slate-200 text-xs" />
                                 </div>
                             </div>
                             <div className="space-y-1">
@@ -1017,7 +1099,7 @@ const LeadView = ({ leadId, id: propId }) => {
                 </div>
             )}
 
-            {/* Modal: Add Call Activity */}
+            {/* Modal: Add Call Activity (with Audio File Uploader & Callback Schedule) */}
             {showCallModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs font-sans">
                     <div className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
@@ -1044,6 +1126,49 @@ const LeadView = ({ leadId, id: propId }) => {
                                     <input type="text" value={newCall.duration} onChange={(e) => setNewCall({ ...newCall, duration: e.target.value })} placeholder="02:45" className="w-full p-2.5 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 font-bold" />
                                 </div>
                             </div>
+                            
+                            {/* Callback Date & Time Fields */}
+                            <div className="grid grid-cols-2 gap-3 pt-1">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                        <Calendar size={13} className="text-violet-600" /> Callback Date
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        value={newCall.callbackDate} 
+                                        onChange={(e) => setNewCall({ ...newCall, callbackDate: e.target.value })}
+                                        className="w-full p-2 border border-slate-200 rounded-xl text-xs bg-slate-50 font-semibold cursor-pointer" 
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                        <Clock size={13} className="text-violet-600" /> Callback Time
+                                    </label>
+                                    <input 
+                                        type="time" 
+                                        value={newCall.callbackTime} 
+                                        onChange={(e) => setNewCall({ ...newCall, callbackTime: e.target.value })}
+                                        className="w-full p-2 border border-slate-200 rounded-xl text-xs bg-slate-50 font-semibold cursor-pointer" 
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Audio Recording Attachment Field */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                    <Mic size={13} className="text-blue-600" /> Call Recording (Audio File)
+                                </label>
+                                <input 
+                                    type="file" 
+                                    accept="audio/*" 
+                                    onChange={(e) => setNewCall({ ...newCall, audioFile: e.target.files[0] })}
+                                    className="w-full p-2 border border-slate-200 rounded-xl text-xs bg-slate-50 cursor-pointer" 
+                                />
+                                {newCall.audioFile && (
+                                    <p className="text-[10px] text-emerald-600 font-semibold">Attached: {newCall.audioFile.name}</p>
+                                )}
+                            </div>
+
                             <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-700">Call Remarks / Notes</label>
                                 <textarea rows={3} value={newCall.remarks} onChange={(e) => setNewCall({ ...newCall, remarks: e.target.value })} placeholder="Enter call discussion notes..." className="w-full p-2.5 rounded-xl border border-slate-200 text-xs" />

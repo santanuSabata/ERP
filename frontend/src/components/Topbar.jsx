@@ -92,7 +92,7 @@ const Topbar = () => {
     const activeCompanyId = activeCompany?.id || localStorage.getItem('activeCompanyId') || '1';
 
     return (
-        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 shrink-0 gap-4 relative">
+        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-3 shrink-0 gap-4 relative">
             {/* Left: Company Switcher Dropdown */}
             <div className="relative" ref={companyDropdownRef}>
                 <div 

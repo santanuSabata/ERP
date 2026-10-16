@@ -1,10 +1,10 @@
 import express from 'express';
-import { agentLogin, getAgentLeads,  updateAgentLeadStatus } from '../../controllers/agent/agentController.js';
+import { rmLogin, getRmLeads,  updateRmLeadStatus } from '../../controllers/rm/rmController.js';
 
 const router = express.Router();
 
-router.post('/login', agentLogin);
-router.get('/leads', getAgentLeads);
-router.put('/leads/:id', updateAgentLeadStatus);
+router.post('/login', rmLogin);
+router.get('/leads', getRmLeads);
+router.put('/leads/:id', updateRmLeadStatus);
 
 export default router;

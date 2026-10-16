@@ -404,8 +404,19 @@ export const updateLead = async (req, res) => {
             for (const c of calls) {
                 if (c.subject) {
                     await pool.query(
-                        `INSERT INTO lead_calls (lead_id, subject, call_type, duration, user_name, remarks) VALUES ($1, $2, $3, $4, $5, $6)`,
-                        [leadId, c.subject, c.call_type || c.callType || 'Outbound', c.duration || '00:00', c.user_name || c.userName || 'Admin', c.remarks || null]
+                        `INSERT INTO lead_calls (lead_id, subject, call_type, duration, user_name, remarks, audio_url, callback_date, callback_time) 
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')::date, NULLIF($9, '')::time)`,
+                        [
+                            leadId, 
+                            c.subject, 
+                            c.call_type || c.callType || 'Outbound', 
+                            c.duration || '00:00', 
+                            c.user_name || c.userName || 'Admin', 
+                            c.remarks || null,
+                            c.audio_url || c.audioUrl || null,
+                            c.callback_date || c.callbackDate || null,
+                            c.callback_time || c.callbackTime || null
+                        ]
                     );
                 }
             }
@@ -603,6 +614,17 @@ export const getLeadMetricsSummary = async (req, res) => {
         return res.status(200).json({ success: true, metrics: rows });
     } catch (err) {
         console.error('❌ Failed to fetch lead metrics summary:', err);
+        return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+};
+
+export const getLeadStages = async (req, res) => {
+    try {
+        const query = `SELECT * FROM crm_lead_stages ORDER BY id ASC;`;
+        const { rows } = await pool.query(query);
+        return res.status(200).json({ success: true, stages: rows });
+    } catch (err) {
+        console.error('❌ Failed to fetch lead stages:', err);
         return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 };

@@ -106,7 +106,7 @@ const AgentLogin = () => {
                         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-950/60 border border-emerald-800/50 text-emerald-400 rounded-full text-[10px] font-mono font-bold tracking-widest uppercase mb-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> SECURE 256-BIT SSL ENCRYPTED
                         </div>
-                        <h1 className="text-xl font-black text-white tracking-tight">Agent Terminal Authorization</h1>
+                        <h1 className="text-xl font-black text-white tracking-tight">Manager Terminal Authorization</h1>
                         <p className="text-xs text-slate-400 mt-1">Restricted corporate personnel access only.</p>
                     </div>
                 </div>

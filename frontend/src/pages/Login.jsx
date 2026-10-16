@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Building2, Eye, EyeOff, ShieldCheck, Zap, BarChart3, ArrowRight, CheckCircle2, PhoneCall } from 'lucide-react';
+import { Building2, Eye, EyeOff, ShieldCheck, Zap, BarChart3, ArrowRight, CheckCircle2, UserCheck, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import Spinner from '../components/Spinner.jsx';
 
@@ -119,22 +119,44 @@ const Login = () => {
                         </button>
                     </form>
 
-                    {/* 🚀 Dedicated Agent Portal Login Quick Action */}
+                    {/* 🚀 Manager / RM Portal Login Quick Action */}
                     <div className="mt-4">
                         <Link 
                             to="/agent"
-                            className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-violet-50 hover:bg-violet-100/70 border border-violet-100 transition group"
+                            className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-100 transition group"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-violet-600 text-white rounded-xl shadow-md group-hover:scale-105 transition">
-                                    <PhoneCall size={16} />
+                                <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-md group-hover:scale-105 transition">
+                                    <UserCheck size={16} />
                                 </div>
                                 <div className="text-left">
-                                    <span className="block text-xs font-bold text-slate-900">Field Agent & Sales Portal</span>
-                                    <span className="block text-[11px] text-violet-700 font-semibold">Login via Mobile & 4-Digit PIN</span>
+                                    <span className="block text-xs font-bold text-slate-900">Manager  Portal Login</span>
+                                    <span className="block text-[11px] text-emerald-700 font-semibold">Access  Manager Dashboard</span>
+                                </div> 
+                                 
+                            </div>
+                            <ArrowRight size={16} className="text-emerald-600 group-hover:translate-x-1 transition-transform mr-1" />
+                        </Link>
+                    </div>
+
+                     {/* 🚀 Manager / RM Portal Login Quick Action */}
+                    <div className="mt-4">
+                        <Link 
+                            to="/rm"
+                            className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-100 transition group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-md group-hover:scale-105 transition">
+                                    <UserCheck size={16} />
+                                </div>
+                                 
+
+                                <div className="text-left">
+                                    <span className="block text-xs font-bold text-slate-900">RM Portal Login</span>
+                                    <span className="block text-[11px] text-emerald-700 font-semibold">Access Relationship Manager Dashboard</span>
                                 </div>
                             </div>
-                            <ArrowRight size={16} className="text-violet-600 group-hover:translate-x-1 transition-transform mr-1" />
+                            <ArrowRight size={16} className="text-emerald-600 group-hover:translate-x-1 transition-transform mr-1" />
                         </Link>
                     </div>
 

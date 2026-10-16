@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Upload, FileSpreadsheet, Trash2, Edit3, Eye, LayoutGrid, List, Building2, User, Calendar, ChevronLeft, ChevronRight, UserCheck, ChevronDown, Download, FileText, Users, UserX } from 'lucide-react';
+import { Search, Plus, Upload, FileSpreadsheet, Trash2, Edit3, Eye, LayoutGrid, List, Building2, User, Calendar, ChevronLeft, ChevronRight, UserCheck, ChevronDown, Download, FileText, Users, UserX, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/axios.js';
 import AddLead from '../../components/crm/AddLead.jsx';
-import ViewLead from '../../components/crm/ViewLead.jsx';
+import ViewLead from '../../components/crm/ViewLeadRm.jsx';
 
 const Leads = () => {
     const navigate = useNavigate();
@@ -31,13 +31,14 @@ const Leads = () => {
     const [selectedLeadIds, setSelectedLeadIds] = useState([]);
     const [bulkAgentId, setBulkAgentId] = useState('');
     const [agentUsers, setAgentUsers] = useState([]);
+    const [leadStages, setLeadStages] = useState([]);
 
     // Modal & Drawer States
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [currentLeadId, setCurrentLeadId] = useState(null);
-    const [systemUsers, setSystemUsers] = useState([]); // 👈 Users table state
+    const [systemUsers, setSystemUsers] = useState([]);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -82,7 +83,31 @@ const Leads = () => {
         }
     };
 
-    // 👈 Fetch agents directly from the /users table
+    const fetchLeadStages = async () => {
+        const defaultStages = [
+            { id: 1, name: 'New' },
+            { id: 2, name: 'Contacted' },
+            { id: 3, name: 'Interested' },
+            { id: 4, name: 'Converted' },
+            { id: 5, name: 'Closed' }
+        ];
+
+        try {
+            const res = await api.get('/lead-stages').catch(async () => {
+                return await api.get('/crm/lead-stages');
+            });
+
+            const stagesData = res.data?.stages || res.data?.data || res.data || [];
+            if (Array.isArray(stagesData) && stagesData.length > 0) {
+                setLeadStages(stagesData);
+            } else {
+                setLeadStages(defaultStages);
+            }
+        } catch (e) {
+            setLeadStages(defaultStages);
+        }
+    };
+
     const fetchSystemUsers = async () => {
         try {
             const activeCompanyId = localStorage.getItem('activeCompanyId') || 2;
@@ -92,14 +117,12 @@ const Leads = () => {
             const list = Array.isArray(userData) ? userData : [];
             setSystemUsers(list);
 
-            // Filter users belonging to the 'Agent' role
             const agents = list.filter(u => {
                 const roleName = u.role || u.role_name || '';
                 return roleName.toLowerCase() === 'agent';
             });
             setAgentUsers(agents);
         } catch (e) {
-            console.warn('⚠️ Users endpoint returned an error. Defaulting to empty list.');
             setSystemUsers([]);
             setAgentUsers([]);
         }
@@ -108,16 +131,26 @@ const Leads = () => {
     useEffect(() => {
         fetchLeads();
         fetchSystemUsers();
+        fetchLeadStages();
     }, [search, statusFilter, insuranceFilter, agentFilter, assignmentFilter, fromDate, toDate, page, limit]);
 
     const assignedCount = leads.filter(l => l.agent_id !== null && l.agent_id !== undefined && l.agent_id !== '').length;
     const notAssignedCount = leads.filter(l => l.agent_id === null || l.agent_id === undefined || l.agent_id === '').length;
 
-    // 👈 Get Agent Name from users table
     const getAgentName = (agentId) => {
         if (!agentId) return 'Unassigned';
         const user = systemUsers.find(u => Number(u.id) === Number(agentId));
         return user ? (user.full_name || user.name || user.username) : `Agent #${agentId}`;
+    };
+
+    const handleUpdateStage = async (leadId, newStage) => {
+        try {
+            await api.put(`/leads/${leadId}`, { status: newStage, leadStatus: newStage });
+            toast.success('Lead stage updated successfully!');
+            fetchLeads();
+        } catch (err) {
+            toast.error('Failed to update lead stage.');
+        }
     };
 
     const handleDeleteLead = async (id) => {
@@ -146,7 +179,6 @@ const Leads = () => {
             setSelectedLeadIds([]);
             fetchLeads();
         } catch (err) {
-            console.error('❌ Bulk delete error:', err);
             toast.error('Failed to delete selected leads.');
         }
     };
@@ -177,15 +209,10 @@ const Leads = () => {
 
         try {
             const updatePromises = selectedLeadIds.map(async (id) => {
-                try {
-                    return await api.put(`/leads/${id}`, { 
-                        agentId: bulkAgentId, 
-                        agent_id: bulkAgentId 
-                    });
-                } catch (innerErr) {
-                    console.error(`❌ Failed to update lead ID ${id}:`, innerErr);
-                    throw innerErr;
-                }
+                return await api.put(`/leads/${id}`, { 
+                    agentId: bulkAgentId, 
+                    agent_id: bulkAgentId 
+                });
             });
 
             await Promise.all(updatePromises);
@@ -195,7 +222,6 @@ const Leads = () => {
             setBulkAgentId('');
             fetchLeads();
         } catch (err) {
-            console.error('❌ Bulk assignment error:', err);
             toast.error('Failed to assign leads. Check server logs.');
         }
     };
@@ -238,7 +264,6 @@ const Leads = () => {
                     fetchLeads();
                 }
             } catch (err) {
-                console.error('CSV upload error:', err);
                 toast.error(err.response?.data?.error || 'CSV upload failed.');
             }
         };
@@ -272,19 +297,10 @@ const Leads = () => {
         toast.success('Sample CSV template downloaded!');
     };
 
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case 'Converted': return <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-lg text-[11px]">Converted</span>;
-            case 'Interested': return <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg text-[11px]">Interested</span>;
-            case 'Contacted': return <span className="px-2.5 py-1 bg-amber-50 text-amber-700 font-bold rounded-lg text-[11px]">Contacted</span>;
-            default: return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 font-bold rounded-lg text-[11px]">New</span>;
-        }
-    };
-
     return (
-        <div className="w-full px-6 py-4 space-y-6 pb-25 font-sans text-slate-900 bg-slate-50/50 min-h-screen">
+        <div className="w-full px-2 space-y-6 pb-25 font-sans text-slate-900 bg-slate-50/50 min-h-screen">
             {/* Header Title & Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-3 rounded-3xl border border-slate-200/80 shadow-2xs">
                 <div>
                     <h1 className="text-lg font-black text-slate-900 tracking-tight">Corporate Insurance Leads</h1>
                     <p className="text-xs text-slate-400">Manage corporate insurance transactions, policy allocations, and agent assignments.</p>
@@ -427,15 +443,20 @@ const Leads = () => {
                         <option value="Directors & Officers Liability">Directors & Officers Liability</option>
                     </select>
 
+                    {/* Dynamic Status Filter populated from leadStages */}
                     <select 
                         value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
                         className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold cursor-pointer"
                     >
                         <option value="All">All Status</option>
-                        <option value="New">New</option>
-                        <option value="Contacted">Contacted</option>
-                        <option value="Interested">Interested</option>
-                        <option value="Converted">Converted</option>
+                        {leadStages.map(stage => {
+                            const stageName = stage.name || stage.stage_name || stage.status;
+                            return (
+                                <option key={stage.id || stageName} value={stageName}>
+                                    {stageName}
+                                </option>
+                            );
+                        })}
                     </select>
 
                     {/* View Mode Toggle */}
@@ -520,11 +541,13 @@ const Leads = () => {
                             />
                             <span>Select</span>
                         </div>
-                        <div className="col-span-2">Txn ID & Date</div>
+                        <div className="col-span-2">Lead ID & Date</div>
                         <div className="col-span-3">Company & Contact</div>
                         <div className="col-span-2">Insurance Type</div>
-                        <div className="col-span-1">Status</div>
-                        <div className="col-span-3 text-right">Actions</div>
+                        {/* 👈 Lead Stage Column Header */}
+                        <div className="col-span-1">Lead Stage</div>
+                        <div className="col-span-1">Stage</div>
+                        <div className="col-span-2 text-right">Actions</div>
                     </div>
                     <div className="divide-y divide-slate-100 text-xs">
                         {leads.map(lead => (
@@ -549,8 +572,25 @@ const Leads = () => {
                                     <div className="font-semibold text-slate-700">{lead.insurance_type}</div>
                                     <span className="text-[10px] text-violet-600 font-bold flex items-center gap-1 mt-0.5"><User size={11} /> {getAgentName(lead.agent_id)}</span>
                                 </div>
-                                <div className="col-span-1">{getStatusBadge(lead.status)}</div>
-                                <div className="col-span-3 text-right flex items-center justify-end gap-1.5">
+                                {/* 👈 Lead Stage Name / ID Display Column */}
+                                <div className="col-span-1">
+                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-semibold text-[11px]">
+                                        {lead.lead_stage_name || lead.lead_stage_id || '-'}
+                                    </span>
+                                </div>
+                                <div className="col-span-1">
+                                    <select 
+                                        value={lead.status || 'New'}
+                                        onChange={(e) => handleUpdateStage(lead.id, e.target.value)}
+                                        className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
+                                    >
+                                        {leadStages.map(stage => {
+                                            const stageName = stage.name || stage.stage_name || stage.status;
+                                            return <option key={stage.id || stageName} value={stageName}>{stageName}</option>;
+                                        })}
+                                    </select>
+                                </div>
+                                <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
                                     <button onClick={() => { setCurrentLeadId(lead.id); setIsViewModalOpen(true); }} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl cursor-pointer" title="View Details">
                                         <Eye size={14} />
                                     </button>
@@ -568,7 +608,7 @@ const Leads = () => {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {leads.map(lead => (
-                        <div key={lead.id} className={`bg-white p-6 rounded-3xl border shadow-2xs space-y-4 transition ${selectedLeadIds.includes(lead.id) ? 'border-blue-500 bg-blue-50/20' : 'border-slate-200 hover:border-blue-300'}`}>
+                        <div key={lead.id} className={`bg-white p-4 rounded-3xl border shadow-2xs space-y-4 transition ${selectedLeadIds.includes(lead.id) ? 'border-blue-500 bg-blue-50/20' : 'border-slate-200 hover:border-blue-300'}`}>
                             <div className="flex justify-between items-start">
                                 <div className="flex items-center gap-2">
                                     <input 
@@ -579,13 +619,23 @@ const Leads = () => {
                                     />
                                     <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">{lead.transaction_id}</span>
                                 </div>
-                                {getStatusBadge(lead.status)}
+                                <select 
+                                    value={lead.status || 'New'}
+                                    onChange={(e) => handleUpdateStage(lead.id, e.target.value)}
+                                    className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer"
+                                >
+                                    {leadStages.map(stage => {
+                                        const stageName = stage.name || stage.stage_name || stage.status;
+                                        return <option key={stage.id || stageName} value={stageName}>{stageName}</option>;
+                                    })}
+                                </select>
                             </div>
                             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5"><Building2 size={15} className="text-blue-600" />{lead.company_name}</h3>
                             <div className="space-y-1.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
                                 <div className="flex justify-between"><span className="text-slate-400">Contact Person:</span> <strong className="text-slate-800">{lead.contact_person}</strong></div>
                                 <div className="flex justify-between"><span className="text-slate-400">Phone:</span> <span className="font-mono">{lead.phone}</span></div>
                                 <div className="flex justify-between"><span className="text-slate-400">Insurance Type:</span> <strong className="text-slate-800">{lead.insurance_type}</strong></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Lead Stage:</span> <strong className="text-slate-800">{lead.lead_stage_name || lead.lead_stage_id || '-'}</strong></div>
                                 <div className="flex justify-between"><span className="text-slate-400">Assigned Agent:</span> <strong className="text-violet-600 flex items-center gap-1"><User size={12} /> {getAgentName(lead.agent_id)}</strong></div>
                                 <div className="flex justify-between"><span className="text-slate-400">Policy Value:</span> <strong className="font-mono text-slate-900">₹{parseFloat(lead.policy_value || 0).toLocaleString()}</strong></div>
                                 <div className="flex justify-between"><span className="text-slate-400">Expiry Date:</span> <span className="font-mono text-slate-700">{lead.expiry_date ? lead.expiry_date.split('T')[0] : 'N/A'}</span></div>

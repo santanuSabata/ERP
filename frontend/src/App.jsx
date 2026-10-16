@@ -20,7 +20,7 @@ import AddCustomer from './components/sales/AddCustomer.jsx';
 
 import Vendors from './pages/purchase/Vendors.jsx';
 import AddVendor from './components/purchase/AddVendor.jsx';
-import PurchaseOrders from './pages/purchase/PurchaseOrders.jsx'; // 👈 1. Import Purchase Orders page
+import PurchaseOrders from './pages/purchase/PurchaseOrders.jsx';
 import AddPurchase from './components/purchase/AddPurchase.jsx';
 
 
@@ -39,7 +39,6 @@ import AddQuotation from './components/sales/AddQuotation.jsx';
 import PublicQuotationView from './components/sales/PublicQuotationView.jsx';
 import Purchases from './pages/purchase/Purchases.jsx';
  
-
 //HR
 import Departments from './pages/hr/Departments.jsx';
 import AddDepartment from './components/hr/AddDepartment.jsx';
@@ -54,16 +53,18 @@ import AttendanceSheet from './pages/hr/AttendanceSheet.jsx';
 //CRM
 import Leads from './pages/crm/Leads.jsx';
 import AddLead from './components/crm/AddLead.jsx';
-import LeadView from './components/crm/ViewLead.jsx';
+import LeadView from './components/crm/ViewLeadRm.jsx';
 import CrmSettings from './pages/crm/CrmSettings.jsx';
 import LeadsDashboard from './pages/crm/LeadsDashboard.jsx';
 import UploadLeadsPreview from './components/crm/UploadLeadsPreview.jsx';
 
-
-
 //Agents (Standalone - No Sidebar)
 import AgentLogin from './pages/agent/AgentLogin.jsx';
 import AgentDashboard from './pages/agent/AgentDashboard.jsx';
+
+//RM (Standalone - No Sidebar)
+import RmLogin from './pages/rm/RmLogin.jsx';
+import RmDashboard from './pages/rm/RmDashboard.jsx'; // 👈 Fixed import path and component name
 
 const App = () => {
     return (
@@ -75,6 +76,11 @@ const App = () => {
             <Route path="/agent" element={<AgentLogin />} />
             <Route path="/agent/login" element={<Navigate to="/agent" replace />} />
             <Route path="/agent/dashboard" element={<AgentDashboard />} />
+
+            {/* 📂 STANDALONE RM ROUTES (Outside Layout = No Sidebar) */}
+            <Route path="/rm" element={<RmLogin />} />
+            <Route path="/rm/login" element={<Navigate to="/rm" replace />} />
+            <Route path="/rm/dashboard" element={<RmDashboard />} />
             
             {/* Protected Layout Route Wrapper (Includes Sidebar & Header) */}
             <Route
@@ -91,7 +97,7 @@ const App = () => {
                 <Route path="/customer/add" element={<AddCustomer />} />
                 <Route path="/customers/edit/:id" element={<AddCustomer />} />
                                 
-                // CRM Routes:
+                {/* CRM Routes */}
                 <Route path="/crm/leads" element={<Leads />} />
                 <Route path="/crm/leads/add" element={<AddLead />} />
                 <Route path="/crm/leads/edit/:id" element={<AddLead />} />
@@ -106,12 +112,11 @@ const App = () => {
                 <Route path="/vendors/edit/:id" element={<AddVendor />} />
 
                 {/* Purchase Orders Routes */}
-                <Route path="/purchases/orders" element={<PurchaseOrders />} /> {/* 👈 2. Register Purchase Orders route */}
+                <Route path="/purchases/orders" element={<PurchaseOrders />} />
                 <Route path="/purchase" element={<Purchases />} />
                 <Route path="/purchases/add" element={<AddPurchase />} />
                 <Route path="/purchases/edit/:id" element={<AddPurchase />} />
 
-                
                 {/* Products Routes */}
                 <Route path="/products" element={<Products />} />
                 <Route path="/products/add" element={<AddProduct />} />
